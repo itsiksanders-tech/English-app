@@ -528,7 +528,6 @@ body {
   border: 3px solid var(--line);
   background: var(--card);
   color: var(--ink);
-  direction: ltr;
 }
 
 .type-input:focus {
@@ -618,8 +617,8 @@ body {
 
 .handwrite-canvas {
   width: 100%;
-  max-width: 320px;
-  height: 140px;
+  max-width: 360px;
+  height: 135px;
   background: var(--card);
   border: 3px dashed var(--line);
   border-radius: 18px;
@@ -632,4 +631,169 @@ body {
   font-weight: 700;
   color: var(--ink-soft);
   min-height: 18px;
+}
+
+.dash-title {
+  font-family: 'Baloo 2', ui-rounded, sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: center;
+  margin: 8px 0 20px;
+}
+
+/* Mode select */
+
+.mode-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 22px 44px;
+}
+
+.mode-btn {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 22px;
+  padding: 16px 18px;
+  box-shadow: 0 6px 0 var(--shadow);
+  cursor: pointer;
+  text-align: right;
+}
+
+.mode-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 var(--shadow);
+}
+
+.mode-btn-emoji {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.mode-btn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mode-btn-title {
+  font-family: 'Baloo 2', ui-rounded, sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.mode-btn-desc {
+  font-family: 'Rubik', sans-serif;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* Photo config */
+
+.photo-config {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 24px 22px 44px;
+}
+
+.config-group {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-label {
+  font-family: 'Rubik', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.config-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Rubik', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.config-choice input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--teal);
+}
+
+/* Hint */
+
+.hint-btn {
+  font-family: 'Rubik', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 18px;
+  cursor: pointer;
+}
+
+.hint-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.hint-reveal {
+  font-family: 'Baloo 2', ui-rounded, sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--teal-deep);
+  background: #eafff9;
+  border: 2px dashed var(--teal);
+  border-radius: 14px;
+  padding: 8px 18px;
+}
+
+.option-btn.eliminated {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+.switch-mode-btn {
+  margin-top: 4px;
+  font-family: 'Rubik', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
 }

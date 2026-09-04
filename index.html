@@ -20,7 +20,6 @@
       <button id="logoutBtn" class="logout-btn" type="button" aria-label="התנתקות">⎋</button>
     </div>
     <div id="gameStats" class="game-stats hidden">
-      <button id="photoBtn" type="button" class="photo-btn" aria-label="תרגול מתמונה" title="תרגול מתמונה">📷</button>
       <div class="stat">
         <span class="stat-emoji">⭐</span>
         <span id="score">0</span>
@@ -30,10 +29,7 @@
         <span id="streak">0</span>
       </div>
     </div>
-    <input id="photoInput" type="file" accept="image/*" capture="environment" class="hidden">
   </header>
-
-  <div id="photoStatus" class="photo-status hidden"></div>
 
   <main id="authScreen" class="auth-screen">
     <div class="auth-card">
@@ -74,10 +70,59 @@
     </div>
   </main>
 
+  <main id="modeScreen" class="mode-screen hidden">
+    <h1 class="dash-title">איזה משחק?</h1>
+    <button id="modeContinuousBtn" type="button" class="mode-btn">
+      <span class="mode-btn-emoji">🎮</span>
+      <span class="mode-btn-text">
+        <span class="mode-btn-title">משחק רגיל</span>
+        <span class="mode-btn-desc">10 שאלות מתחלפות, לפי הרמה שלך</span>
+      </span>
+    </button>
+    <button id="modeSprintBtn" type="button" class="mode-btn">
+      <span class="mode-btn-emoji">🏃</span>
+      <span class="mode-btn-text">
+        <span class="mode-btn-title">ספרינט 10 מילים</span>
+        <span class="mode-btn-desc">זיהוי, אז הקלדה, אז כתיבה - עד שמושלם</span>
+      </span>
+    </button>
+    <button id="modePhotoBtn" type="button" class="mode-btn">
+      <span class="mode-btn-emoji">📷</span>
+      <span class="mode-btn-text">
+        <span class="mode-btn-title">תרגול מתמונה</span>
+        <span class="mode-btn-desc">צלם עמוד ותתרגל רק את המילים שבו</span>
+      </span>
+    </button>
+    <input id="photoInput" type="file" accept="image/*" capture="environment" class="hidden">
+    <div id="photoStatus" class="photo-status hidden"></div>
+  </main>
+
+  <div id="photoConfigScreen" class="photo-config hidden">
+    <h2 class="dash-title">איך לתרגל?</h2>
+    <div class="config-group">
+      <span class="config-label">כיוון</span>
+      <div class="config-options">
+        <label class="config-choice"><input type="radio" name="photoDirection" value="he-en" checked> עברית ← אנגלית</label>
+        <label class="config-choice"><input type="radio" name="photoDirection" value="en-he"> אנגלית ← עברית</label>
+      </div>
+    </div>
+    <div class="config-group">
+      <span class="config-label">איך לענות</span>
+      <div class="config-options">
+        <label class="config-choice"><input type="radio" name="photoAnswerMode" value="type" checked> הקלדה במקלדת</label>
+        <label class="config-choice"><input type="radio" name="photoAnswerMode" value="handwrite"> כתיבה עם האצבע</label>
+      </div>
+    </div>
+    <button id="photoConfigStartBtn" type="button" class="auth-submit">התחל</button>
+  </div>
+
   <main id="game" class="game hidden">
     <div class="word-card">
       <div id="prompt" class="prompt"></div>
     </div>
+
+    <button id="hintBtn" type="button" class="hint-btn">💡 רמז</button>
+    <div id="hintReveal" class="hint-reveal hidden"></div>
 
     <div id="options" class="options"></div>
 
@@ -91,7 +136,7 @@
     </div>
 
     <div id="handwriteAnswer" class="handwrite-answer hidden">
-      <canvas id="handwriteCanvas" class="handwrite-canvas" width="320" height="140"></canvas>
+      <canvas id="handwriteCanvas" class="handwrite-canvas" width="480" height="180"></canvas>
       <div id="handwriteRecognized" class="handwrite-recognized"></div>
       <div class="type-actions">
         <button id="handwriteClear" type="button" class="type-action-btn">נקה</button>
@@ -108,6 +153,7 @@
     <div class="celebration-text">כל הכבוד!</div>
     <div id="celebrationScore" class="celebration-score">10 מתוך 10</div>
     <button id="playAgainBtn" class="play-again-btn">לשחק עוד</button>
+    <button id="switchModeBtn" class="switch-mode-btn">משחק אחר</button>
   </div>
 
 </div>

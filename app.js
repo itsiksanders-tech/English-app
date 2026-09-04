@@ -145,8 +145,6 @@ const authEls = {
   userGreeting: document.getElementById("userGreeting"),
   userLevelBadge: document.getElementById("userLevelBadge"),
   logoutBtn: document.getElementById("logoutBtn"),
-  game: document.getElementById("game"),
-  celebration: document.getElementById("celebration"),
 };
 
 function setAuthError(message) {
@@ -259,9 +257,7 @@ onAuthStateChanged(auth, async (user) => {
   } else {
     currentUid = null;
     currentProfile = null;
-    authEls.screen.classList.remove("hidden");
-    authEls.game.classList.add("hidden");
-    authEls.celebration.classList.add("hidden");
+    showScreen("auth");
     authEls.userBar.classList.add("hidden");
     authEls.gameStats.classList.add("hidden");
   }
@@ -273,21 +269,21 @@ function currentLevel() {
 }
 
 function enterGame(profile) {
-  authEls.screen.classList.add("hidden");
-  authEls.game.classList.remove("hidden");
   authEls.userBar.classList.remove("hidden");
   authEls.gameStats.classList.remove("hidden");
   authEls.userGreeting.textContent = `היי ${profile.name}!`;
   authEls.userLevelBadge.textContent = `רמה ${currentLevel()}`;
-  startSession();
+  showScreen("mode");
 }
 
-// ---- Game logic ----
+// ---- Screen navigation ----
 
 const gameEls = {
   score: document.getElementById("score"),
   streak: document.getElementById("streak"),
   prompt: document.getElementById("prompt"),
+  hintBtn: document.getElementById("hintBtn"),
+  hintReveal: document.getElementById("hintReveal"),
   options: document.getElementById("options"),
   typeAnswer: document.getElementById("typeAnswer"),
   typeInput: document.getElementById("typeInput"),
@@ -305,10 +301,32 @@ const gameEls = {
   celebrationScore: document.getElementById("celebrationScore"),
   confettiLayer: document.getElementById("confettiLayer"),
   playAgainBtn: document.getElementById("playAgainBtn"),
-  photoBtn: document.getElementById("photoBtn"),
+  switchModeBtn: document.getElementById("switchModeBtn"),
+  modeScreen: document.getElementById("modeScreen"),
+  modeContinuousBtn: document.getElementById("modeContinuousBtn"),
+  modeSprintBtn: document.getElementById("modeSprintBtn"),
+  modePhotoBtn: document.getElementById("modePhotoBtn"),
   photoInput: document.getElementById("photoInput"),
   photoStatus: document.getElementById("photoStatus"),
+  photoConfigScreen: document.getElementById("photoConfigScreen"),
+  photoConfigStartBtn: document.getElementById("photoConfigStartBtn"),
 };
+
+const screens = {
+  auth: authEls.screen,
+  mode: gameEls.modeScreen,
+  photoConfig: gameEls.photoConfigScreen,
+  game: gameEls.game,
+  celebration: gameEls.celebration,
+};
+
+function showScreen(name) {
+  Object.entries(screens).forEach(([key, el]) => {
+    el.classList.toggle("hidden", key !== name);
+  });
+}
+
+// ---- Game engine shared by all three modes ----
 
 const CONFETTI_EMOJI = ["🎉", "⭐", "🎈", "🏅", "✨"];
 const ROUNDS_PER_SESSION = 10;
@@ -324,26 +342,40 @@ const ROUND_TYPES = [
   { prompt: "en", options: "emoji" },
 ];
 
-// Words captured from a photo have no emoji, so a photo session only
-// ever uses text-to-text rounds.
-const PHOTO_ROUND_TYPES = [
-  { prompt: "en", options: "he" },
-  { prompt: "he", options: "en" },
-];
+const SPRINT_WORD_COUNT = 10;
+const SPRINT_STAGES = ["choice", "type", "handwrite"];
 
+let currentMode = "continuous"; // "continuous" | "sprint" | "photo"
 let score = 0;
 let streak = 0;
 let round = 0;
 let lastWordEn = null;
 let locked = false;
 
-// Set during a photo-training session; cleared back to null (regular
-// leveled practice) once that session's celebration screen shows.
+// Photo mode: the word list/round shape/answer method are all fixed
+// by the picker screen rather than chosen randomly each round.
 let activeWords = null;
 let activeRoundTypes = null;
+let forcedAnswerMode = null;
+let pendingPhotoWords = null;
+
+// Sprint mode: 10 words, each tracked through 3 mastery stages.
+let sprintWords = [];
+
+// The round currently on screen — read by the hint button and by the
+// answer-checking functions, set once per round by renderRound().
+let currentCorrectWord = null;
+let currentRoundType = null;
+let currentAnswerMode = null;
+let currentCorrectKey = null;
+let hintUsedThisRound = false;
 
 function optionKey(word, kind) {
   return kind === "he" ? word.he : kind === "en" ? word.en : word.emoji;
+}
+
+function answerLanguage(roundType) {
+  return roundType.options === "he" ? "he" : "en";
 }
 
 function pickRandom(array, count) {
@@ -384,12 +416,15 @@ function eligibleWords() {
   return pool.length >= 3 ? pool : window.WORDS;
 }
 
-// A typed/handwritten answer only makes sense when the expected
-// answer is the English word (typing Hebrew, or "typing" a picture,
-// isn't offered). Even then, multiple-choice stays the most common
-// mode so younger kids still get the scaffolding.
+function currentPool() {
+  return activeWords || eligibleWords();
+}
+
+// A typed/handwritten answer isn't offered when the target is a
+// picture (there's nothing to spell). Multiple-choice stays the most
+// common mode otherwise so younger kids still get the scaffolding.
 function pickAnswerMode(roundType) {
-  if (roundType.options !== "en") return "choice";
+  if (roundType.options === "emoji") return "choice";
   const r = Math.random();
   if (r < 0.5) return "choice";
   if (r < 0.75) return "type";
@@ -419,23 +454,15 @@ function resetHandwriteCanvas() {
   gameEls.handwriteCheck.disabled = false;
 }
 
-function startSession() {
-  score = 0;
-  streak = 0;
-  round = 0;
-  gameEls.score.textContent = "0";
-  gameEls.streak.textContent = "0";
-  gameEls.celebration.classList.add("hidden");
-  gameEls.game.classList.remove("hidden");
-  nextRound();
-}
-
-function nextRound() {
-  round += 1;
-  if (round > ROUNDS_PER_SESSION) {
-    showCelebration();
-    return;
-  }
+function renderRound(correctWord, roundType, answerMode) {
+  currentCorrectWord = correctWord;
+  currentRoundType = roundType;
+  currentAnswerMode = answerMode;
+  currentCorrectKey = optionKey(correctWord, roundType.options);
+  hintUsedThisRound = false;
+  gameEls.hintBtn.disabled = false;
+  gameEls.hintReveal.classList.add("hidden");
+  gameEls.hintReveal.textContent = "";
 
   locked = false;
   gameEls.feedback.textContent = "";
@@ -444,7 +471,95 @@ function nextRound() {
   resetTypeInput();
   resetHandwriteCanvas();
 
-  const pool = activeWords || eligibleWords();
+  renderPrompt(correctWord, roundType.prompt);
+
+  if (answerMode === "choice") {
+    gameEls.options.classList.remove("hidden");
+    const sourcePool = currentPool();
+    const wrongPool = sourcePool.filter((w) => optionKey(w, roundType.options) !== currentCorrectKey);
+    const optionWords = shuffle([correctWord, ...pickRandom(wrongPool, 2)]);
+    gameEls.options.innerHTML = "";
+    optionWords.forEach((word) => {
+      const btn = renderOption(word, roundType.options);
+      btn.addEventListener("click", () => selectOption(btn, word));
+      gameEls.options.appendChild(btn);
+    });
+  } else if (answerMode === "type") {
+    const lang = answerLanguage(roundType);
+    gameEls.typeInput.dir = lang === "he" ? "rtl" : "ltr";
+    gameEls.typeInput.placeholder = lang === "he" ? "הקלד בעברית" : "הקלד באנגלית";
+    buildTapKeyboard(lang);
+    gameEls.typeAnswer.classList.remove("hidden");
+    gameEls.typeInput.focus();
+  } else {
+    gameEls.handwriteAnswer.classList.remove("hidden");
+  }
+}
+
+// ---- Mode: continuous ----
+
+function startSession() {
+  score = 0;
+  streak = 0;
+  round = 0;
+  lastWordEn = null;
+  gameEls.score.textContent = "0";
+  gameEls.streak.textContent = "0";
+  nextRound();
+}
+
+// ---- Mode: sprint ----
+
+function startSprintSession() {
+  const pool = eligibleWords();
+  const chosen = pickRandom(pool, Math.min(SPRINT_WORD_COUNT, pool.length));
+  sprintWords = chosen.map((word) => ({ word, stage: 0 }));
+
+  score = 0;
+  streak = 0;
+  lastWordEn = null;
+  gameEls.score.textContent = "0";
+  gameEls.streak.textContent = "0";
+  nextRound();
+}
+
+function allSprintWordsMastered() {
+  return sprintWords.every((entry) => entry.stage >= SPRINT_STAGES.length);
+}
+
+function pickSprintRound() {
+  const remaining = sprintWords.filter((entry) => entry.stage < SPRINT_STAGES.length);
+  const entry = remaining[Math.floor(Math.random() * remaining.length)];
+  const answerMode = SPRINT_STAGES[entry.stage];
+  const roundType = { prompt: Math.random() < 0.5 ? "he" : "emoji", options: "en" };
+  return { correctWord: entry.word, roundType, answerMode };
+}
+
+function advanceSprintWord(word, succeeded) {
+  const entry = sprintWords.find((e) => e.word === word);
+  if (entry && succeeded) entry.stage += 1;
+}
+
+// ---- Round dispatch ----
+
+function nextRound() {
+  if (currentMode === "sprint") {
+    if (allSprintWordsMastered()) {
+      showCelebration();
+      return;
+    }
+    const { correctWord, roundType, answerMode } = pickSprintRound();
+    renderRound(correctWord, roundType, answerMode);
+    return;
+  }
+
+  round += 1;
+  if (round > ROUNDS_PER_SESSION) {
+    showCelebration();
+    return;
+  }
+
+  const pool = currentPool();
   let correctWord;
   do {
     correctWord = pool[Math.floor(Math.random() * pool.length)];
@@ -453,87 +568,108 @@ function nextRound() {
 
   const types = activeRoundTypes || ROUND_TYPES;
   const roundType = types[Math.floor(Math.random() * types.length)];
-  const answerMode = pickAnswerMode(roundType);
+  const answerMode = forcedAnswerMode || pickAnswerMode(roundType);
 
-  renderPrompt(correctWord, roundType.prompt);
-
-  const correctKey = optionKey(correctWord, roundType.options);
-
-  if (answerMode === "choice") {
-    gameEls.options.classList.remove("hidden");
-    const wrongPool = pool.filter((w) => optionKey(w, roundType.options) !== correctKey);
-    const optionWords = shuffle([correctWord, ...pickRandom(wrongPool, 2)]);
-    gameEls.options.innerHTML = "";
-    optionWords.forEach((word) => {
-      const btn = renderOption(word, roundType.options);
-      btn.addEventListener("click", () => selectOption(btn, correctKey));
-      gameEls.options.appendChild(btn);
-    });
-  } else if (answerMode === "type") {
-    gameEls.typeAnswer.classList.remove("hidden");
-    gameEls.typeInput.focus();
-    gameEls.typeCheck.onclick = () => checkTypedAnswer(correctKey);
-  } else {
-    gameEls.handwriteAnswer.classList.remove("hidden");
-    gameEls.handwriteCheck.onclick = () => checkHandwriteAnswer(correctKey);
-  }
+  renderRound(correctWord, roundType, answerMode);
 }
 
-function finishRound(isCorrect, correctText) {
-  if (isCorrect) {
+// ---- Finishing a round: scoring, mistake explanations, hint penalty ----
+
+function describeMistake(detail) {
+  const correct = currentCorrectWord;
+  const kind = currentRoundType.options;
+
+  if (detail.chosenWord) {
+    const chosen = detail.chosenWord;
+    if (kind === "he") {
+      return `לא נכון. '${chosen.he}' זה '${chosen.en}', אבל המילה המבוקשת היא '${correct.en}' שזה '${correct.he}'.`;
+    }
+    if (kind === "en") {
+      return `לא נכון. '${chosen.en}' זה '${chosen.he}', אבל המילה המבוקשת היא '${correct.he}' וזה '${correct.en}'.`;
+    }
+    return `לא נכון. בחרת בתמונה של '${chosen.en}' (${chosen.he}), אבל המילה הנכונה היא '${correct.en}' (${correct.he}).`;
+  }
+
+  if (typeof detail.typedValue === "string") {
+    return `כתבת '${detail.typedValue}', אבל התשובה הנכונה היא '${currentCorrectKey}'.`;
+  }
+
+  if (typeof detail.recognizedText === "string") {
+    return detail.recognizedText
+      ? `קראתי '${detail.recognizedText}', אבל התשובה הנכונה היא '${currentCorrectKey}'.`
+      : `לא הצלחתי לקרוא את הכתב, התשובה הנכונה היא '${currentCorrectKey}'.`;
+  }
+
+  return `לא נכון, התשובה היא '${currentCorrectKey}'`;
+}
+
+function finishRound(isCorrect, detail) {
+  // A hint makes the round easier, so a correct answer after using one
+  // doesn't count toward score, level, daily stats, or sprint progress.
+  const outcome = !isCorrect ? "wrong" : hintUsedThisRound ? "hinted" : "correct";
+
+  if (outcome === "correct") {
     score += 1;
     streak += 1;
     gameEls.feedback.textContent = "יפה מאוד! 🎉";
     gameEls.feedback.className = "feedback show correct";
+  } else if (outcome === "hinted") {
+    streak = 0;
+    gameEls.feedback.textContent = "נכון! אבל זה לא נספר כי השתמשת ברמז 💡";
+    gameEls.feedback.className = "feedback show correct";
   } else {
     streak = 0;
-    gameEls.feedback.textContent = `לא נכון, התשובה היא ${correctText}`;
+    gameEls.feedback.textContent = describeMistake(detail);
     gameEls.feedback.className = "feedback show wrong";
   }
 
   gameEls.score.textContent = score;
   gameEls.streak.textContent = streak;
 
-  if (currentProfile) {
-    currentProfile.totalCorrect += isCorrect ? 1 : 0;
-    currentProfile.totalWrong += isCorrect ? 0 : 1;
+  if (currentProfile && outcome !== "hinted") {
+    const countedCorrect = outcome === "correct";
+    currentProfile.totalCorrect += countedCorrect ? 1 : 0;
+    currentProfile.totalWrong += countedCorrect ? 0 : 1;
     authEls.userLevelBadge.textContent = `רמה ${currentLevel()}`;
-    recordAnswer(currentUid, isCorrect);
+    recordAnswer(currentUid, countedCorrect);
+  }
+
+  if (currentMode === "sprint") {
+    advanceSprintWord(currentCorrectWord, outcome === "correct");
   }
 
   setTimeout(nextRound, isCorrect ? CORRECT_ADVANCE_DELAY : CORRECT_ADVANCE_DELAY + 700);
 }
 
-function selectOption(button, correctKey) {
+function selectOption(button, word) {
   if (locked) return;
   locked = true;
 
   const buttons = [...gameEls.options.children];
-  const isCorrect = button.dataset.key === correctKey;
+  const chosenKey = optionKey(word, currentRoundType.options);
+  const isCorrect = chosenKey === currentCorrectKey;
   button.classList.add(isCorrect ? "correct" : "wrong");
-  if (!isCorrect) buttons.find((b) => b.dataset.key === correctKey)?.classList.add("correct");
+  if (!isCorrect) buttons.find((b) => b.dataset.key === currentCorrectKey)?.classList.add("correct");
   buttons.forEach((b) => (b.disabled = true));
 
-  finishRound(isCorrect, correctKey);
+  finishRound(isCorrect, { chosenWord: word });
 }
 
-function checkTypedAnswer(correctKey) {
+function checkTypedAnswer() {
   if (locked) return;
   const value = gameEls.typeInput.value.trim().toLowerCase();
   if (!value) return;
   locked = true;
 
-  const isCorrect = value === correctKey.toLowerCase();
+  const isCorrect = value === currentCorrectKey.toLowerCase();
   gameEls.typeInput.classList.add(isCorrect ? "correct" : "wrong");
   gameEls.typeInput.disabled = true;
 
-  finishRound(isCorrect, correctKey);
+  finishRound(isCorrect, { typedValue: value });
 }
 
-// Two-letter edit distance, used to forgive small handwriting-recognition
-// slips (an extra/missing/swapped letter) rather than grading purely on
-// an exact match, since on-device handwriting OCR is never perfectly
-// reliable.
+// Edit distance, used both to forgive small handwriting-recognition
+// slips and (via toleranceFor) scaled to word length.
 function levenshtein(a, b) {
   const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
   for (let i = 0; i <= a.length; i++) dp[i][0] = i;
@@ -549,37 +685,42 @@ function levenshtein(a, b) {
   return dp[a.length][b.length];
 }
 
-async function checkHandwriteAnswer(correctKey) {
+function toleranceFor(word) {
+  return word.length >= 5 ? 2 : 1;
+}
+
+async function checkHandwriteAnswer() {
   if (locked) return;
   locked = true;
   gameEls.handwriteCheck.disabled = true;
   gameEls.handwriteRecognized.textContent = "קורא...";
 
+  const lang = answerLanguage(currentRoundType);
   let recognizedText = "";
   try {
-    const result = await window.Tesseract.recognize(gameEls.handwriteCanvas, "eng");
-    recognizedText = (result.data.text || "").trim();
+    const worker = await getHandwriteWorker(lang);
+    const { data } = await worker.recognize(gameEls.handwriteCanvas);
+    recognizedText = (data.text || "").trim();
   } catch (err) {
     console.error("Handwriting OCR failed", err);
   }
 
-  const cleaned = recognizedText.toLowerCase().replace(/[^a-z]/g, "");
-  const target = correctKey.toLowerCase();
-  const isCorrect = cleaned.length > 0 && (cleaned === target || levenshtein(cleaned, target) <= 1);
+  const hebrewRange = new RegExp("[^\\u0590-\\u05FF]", "g");
+  const stripPattern = lang === "he" ? hebrewRange : /[^a-z]/g;
+  const cleaned = recognizedText.toLowerCase().replace(stripPattern, "");
+  const target = currentCorrectKey.toLowerCase();
+  const isCorrect = cleaned.length > 0 && levenshtein(cleaned, target) <= toleranceFor(target);
   gameEls.handwriteRecognized.textContent = recognizedText ? `קראתי: ${recognizedText}` : "לא הצלחתי לקרוא";
 
-  finishRound(isCorrect, correctKey);
+  finishRound(isCorrect, { recognizedText });
 }
 
 function showCelebration() {
-  gameEls.game.classList.add("hidden");
-  gameEls.celebration.classList.remove("hidden");
-  gameEls.celebrationScore.textContent = `${score} מתוך ${ROUNDS_PER_SESSION}`;
+  showScreen("celebration");
+  gameEls.celebrationScore.textContent =
+    currentMode === "sprint" ? `10 מילים הושלמו! ⭐ ${score}` : `${score} מתוך ${ROUNDS_PER_SESSION}`;
 
   if (currentUid) recordQuizCompleted(currentUid);
-
-  activeWords = null;
-  activeRoundTypes = null;
 
   gameEls.confettiLayer.innerHTML = "";
   for (let i = 0; i < 18; i++) {
@@ -593,15 +734,91 @@ function showCelebration() {
   }
 }
 
-gameEls.playAgainBtn.addEventListener("click", startSession);
+gameEls.playAgainBtn.addEventListener("click", () => {
+  showScreen("game");
+  if (currentMode === "sprint") startSprintSession();
+  else startSession();
+});
 
-// ---- Typed-answer keyboard (works alongside the device's own keyboard) ----
+gameEls.switchModeBtn.addEventListener("click", () => {
+  activeWords = null;
+  activeRoundTypes = null;
+  forcedAnswerMode = null;
+  showScreen("mode");
+});
 
-const KEYBOARD_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+// ---- Mode picker ----
 
-function buildTapKeyboard() {
+gameEls.modeContinuousBtn.addEventListener("click", () => {
+  currentMode = "continuous";
+  activeWords = null;
+  activeRoundTypes = null;
+  forcedAnswerMode = null;
+  showScreen("game");
+  startSession();
+});
+
+gameEls.modeSprintBtn.addEventListener("click", () => {
+  currentMode = "sprint";
+  activeWords = null;
+  activeRoundTypes = null;
+  forcedAnswerMode = null;
+  showScreen("game");
+  startSprintSession();
+});
+
+gameEls.modePhotoBtn.addEventListener("click", () => gameEls.photoInput.click());
+
+// ---- Hint (elimination / reveal-to-copy / pronunciation) ----
+
+function speakWord(text) {
+  if (!window.speechSynthesis) return;
+  try {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  } catch (err) {
+    console.error("Speech synthesis failed", err);
+  }
+}
+
+function useHint() {
+  if (hintUsedThisRound || locked) return;
+  hintUsedThisRound = true;
+  gameEls.hintBtn.disabled = true;
+
+  speakWord(currentCorrectWord.en);
+
+  if (currentAnswerMode === "choice") {
+    const wrongButtons = [...gameEls.options.children].filter(
+      (b) => b.dataset.key !== currentCorrectKey && !b.disabled
+    );
+    const pick = wrongButtons[Math.floor(Math.random() * wrongButtons.length)];
+    if (pick) {
+      pick.disabled = true;
+      pick.classList.add("eliminated");
+    }
+  } else {
+    gameEls.hintReveal.dir = answerLanguage(currentRoundType) === "he" ? "rtl" : "ltr";
+    gameEls.hintReveal.textContent = currentCorrectKey;
+    gameEls.hintReveal.classList.remove("hidden");
+  }
+}
+
+gameEls.hintBtn.addEventListener("click", useHint);
+
+// ---- Typed-answer keyboard (device keyboard works too) ----
+
+const KEYBOARD_LAYOUTS = {
+  en: ["qwertyuiop", "asdfghjkl", "zxcvbnm"],
+  he: ["אבגדהוז", "חטיכךלמ", "םנןסעפף", "צץקרשת"],
+};
+
+function buildTapKeyboard(lang) {
   gameEls.tapKeyboard.innerHTML = "";
-  KEYBOARD_ROWS.forEach((row) => {
+  gameEls.tapKeyboard.dir = lang === "he" ? "rtl" : "ltr";
+  KEYBOARD_LAYOUTS[lang].forEach((row) => {
     [...row].forEach((letter) => {
       const key = document.createElement("button");
       key.type = "button";
@@ -615,7 +832,6 @@ function buildTapKeyboard() {
     });
   });
 }
-buildTapKeyboard();
 
 gameEls.typeBackspace.addEventListener("click", () => {
   gameEls.typeInput.value = gameEls.typeInput.value.slice(0, -1);
@@ -625,15 +841,17 @@ gameEls.typeBackspace.addEventListener("click", () => {
 gameEls.typeInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
-    gameEls.typeCheck.click();
+    checkTypedAnswer();
   }
 });
+
+gameEls.typeCheck.addEventListener("click", checkTypedAnswer);
 
 // ---- Handwriting canvas (finger or mouse) ----
 
 const handwriteCtx = gameEls.handwriteCanvas.getContext("2d");
 handwriteCtx.strokeStyle = "#2b2140";
-handwriteCtx.lineWidth = 6;
+handwriteCtx.lineWidth = 9;
 handwriteCtx.lineCap = "round";
 handwriteCtx.lineJoin = "round";
 paintHandwriteCanvasWhite();
@@ -677,14 +895,38 @@ gameEls.handwriteClear.addEventListener("click", () => {
   gameEls.handwriteRecognized.textContent = "";
 });
 
-// ---- Photo training: read a page, quiz only on its words ----
+gameEls.handwriteCheck.addEventListener("click", checkHandwriteAnswer);
 
-gameEls.photoBtn.addEventListener("click", () => gameEls.photoInput.click());
+// A single reused worker, forced into single-word recognition mode
+// (Tesseract's default assumes a full page layout, which is a poor
+// fit and the main reason accuracy was bad for one handwritten word)
+// with a letter-only whitelist since the canvas only ever holds one
+// word. Re-created only when the target language actually changes.
+const HEBREW_LETTERS = "אבגדהוזחטיכלמנסעפצקרשתךםןףץ";
+let handwriteWorker = null;
+let handwriteWorkerLang = null;
+
+async function getHandwriteWorker(lang) {
+  const tessLang = lang === "he" ? "heb" : "eng";
+  if (handwriteWorker && handwriteWorkerLang === tessLang) return handwriteWorker;
+  if (handwriteWorker) await handwriteWorker.terminate();
+
+  handwriteWorker = await window.Tesseract.createWorker(tessLang);
+  handwriteWorkerLang = tessLang;
+  await handwriteWorker.setParameters({
+    tessedit_pageseg_mode: "8", // single word
+    tessedit_char_whitelist:
+      tessLang === "heb" ? HEBREW_LETTERS : "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+  });
+  return handwriteWorker;
+}
+
+// ---- Photo training: read a page, quiz only on its words ----
 
 gameEls.photoInput.addEventListener("change", async () => {
   const file = gameEls.photoInput.files[0];
   gameEls.photoInput.value = "";
-  if (file) await startPhotoSession(file);
+  if (file) await resolvePhotoWords(file);
 });
 
 function setPhotoStatus(text, isError) {
@@ -715,7 +957,7 @@ async function translateWord(word) {
   }
 }
 
-async function startPhotoSession(file) {
+async function resolvePhotoWords(file) {
   setPhotoStatus("קורא את התמונה...");
   let text = "";
   try {
@@ -750,8 +992,21 @@ async function startPhotoSession(file) {
     return;
   }
 
-  activeWords = resolved;
-  activeRoundTypes = PHOTO_ROUND_TYPES;
+  pendingPhotoWords = resolved;
   setPhotoStatus("");
-  startSession();
+  showScreen("photoConfig");
 }
+
+gameEls.photoConfigStartBtn.addEventListener("click", () => {
+  const direction = document.querySelector('input[name="photoDirection"]:checked').value;
+  const answerModeChoice = document.querySelector('input[name="photoAnswerMode"]:checked').value;
+
+  activeWords = pendingPhotoWords;
+  activeRoundTypes =
+    direction === "he-en" ? [{ prompt: "he", options: "en" }] : [{ prompt: "en", options: "he" }];
+  forcedAnswerMode = answerModeChoice;
+  currentMode = "photo";
+
+  showScreen("game");
+  startSession();
+});
