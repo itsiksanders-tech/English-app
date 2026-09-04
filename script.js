@@ -7,8 +7,12 @@ const els = {
   feedback: document.getElementById("feedback"),
   game: document.getElementById("game"),
   celebration: document.getElementById("celebration"),
+  celebrationScore: document.getElementById("celebrationScore"),
+  confettiLayer: document.getElementById("confettiLayer"),
   playAgainBtn: document.getElementById("playAgainBtn"),
 };
+
+const CONFETTI_EMOJI = ["🎉", "⭐", "🎈", "🏅", "✨"];
 
 const ROUNDS_PER_SESSION = 10;
 const CORRECT_ADVANCE_DELAY = 900;
@@ -106,6 +110,18 @@ function selectOption(button, chosenWord, correctWord) {
 function showCelebration() {
   els.game.classList.add("hidden");
   els.celebration.classList.remove("hidden");
+  els.celebrationScore.textContent = `${score} מתוך ${ROUNDS_PER_SESSION}`;
+
+  els.confettiLayer.innerHTML = "";
+  for (let i = 0; i < 18; i++) {
+    const piece = document.createElement("span");
+    piece.className = "confetti";
+    piece.textContent = CONFETTI_EMOJI[Math.floor(Math.random() * CONFETTI_EMOJI.length)];
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.animationDelay = `${Math.random() * 2}s`;
+    piece.style.animationDuration = `${2.6 + Math.random() * 1.6}s`;
+    els.confettiLayer.appendChild(piece);
+  }
 }
 
 function restartSession() {
