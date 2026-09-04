@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+.hidden {
+  display: none !important;
+}
+
 html, body {
   margin: 0;
   height: 100%;
@@ -45,9 +49,56 @@ body {
 
 .topbar {
   display: flex;
-  justify-content: center;
-  gap: 28px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   padding: 18px 16px 6px;
+}
+
+.user-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 10px 8px 16px;
+  box-shadow: 0 6px 0 var(--shadow);
+  transform: rotate(-2deg);
+}
+
+.user-greeting {
+  font-family: 'Rubik', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.level-badge {
+  font-family: 'Rubik', sans-serif;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink);
+  background: var(--gold);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.logout-btn {
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.game-stats {
+  display: flex;
+  gap: 12px;
 }
 
 .stat {
@@ -85,8 +136,122 @@ body {
   gap: 26px;
 }
 
-.game.hidden {
-  display: none;
+.auth-screen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  background: var(--card);
+  border-radius: 28px;
+  padding: 28px 24px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 10px 0 var(--shadow);
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 10px;
+  border-radius: 14px;
+  border: 2px solid var(--line);
+  background: var(--paper);
+  font-family: 'Rubik', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.auth-tab.active {
+  background: var(--teal);
+  border-color: var(--teal-deep);
+  color: #ffffff;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: 'Rubik', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.auth-form input {
+  font-family: 'Rubik', sans-serif;
+  font-size: 17px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 2px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.auth-form input:focus {
+  outline: none;
+  border-color: var(--teal);
+}
+
+.auth-hint {
+  font-family: 'Rubik', sans-serif;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: -4px 0 0;
+}
+
+.auth-submit {
+  margin-top: 4px;
+  font-family: 'Rubik', sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  padding: 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--coral);
+  color: #ffffff;
+  box-shadow: 0 6px 0 var(--coral-deep);
+  cursor: pointer;
+}
+
+.auth-submit:active {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 var(--coral-deep);
+}
+
+.auth-error {
+  min-height: 20px;
+  margin-top: 10px;
+  font-family: 'Rubik', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--coral-deep);
+  text-align: center;
+}
+
+.auth-loading {
+  margin-top: 10px;
+  font-family: 'Rubik', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-align: center;
 }
 
 .eyebrow {

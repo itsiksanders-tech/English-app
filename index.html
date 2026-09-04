@@ -14,17 +14,63 @@
 <div class="app">
 
   <header class="topbar">
-    <div class="stat">
-      <span class="stat-emoji">⭐</span>
-      <span id="score">0</span>
+    <div id="userBar" class="user-bar hidden">
+      <span id="userGreeting" class="user-greeting"></span>
+      <span id="userLevelBadge" class="level-badge"></span>
+      <button id="logoutBtn" class="logout-btn" type="button" aria-label="התנתקות">⎋</button>
     </div>
-    <div class="stat streak">
-      <span class="stat-emoji">🔥</span>
-      <span id="streak">0</span>
+    <div id="gameStats" class="game-stats hidden">
+      <div class="stat">
+        <span class="stat-emoji">⭐</span>
+        <span id="score">0</span>
+      </div>
+      <div class="stat streak">
+        <span class="stat-emoji">🔥</span>
+        <span id="streak">0</span>
+      </div>
     </div>
   </header>
 
-  <main id="game" class="game">
+  <main id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button id="tabLogin" class="auth-tab active" type="button">התחברות</button>
+        <button id="tabSignup" class="auth-tab" type="button">משתמש חדש</button>
+      </div>
+
+      <form id="loginForm" class="auth-form">
+        <label>שם
+          <input id="loginName" type="text" autocomplete="off" required>
+        </label>
+        <label>סיסמה
+          <input id="loginPassword" type="password" autocomplete="off" required>
+        </label>
+        <button type="submit" class="auth-submit">התחבר</button>
+      </form>
+
+      <form id="signupForm" class="auth-form hidden">
+        <label>שם
+          <input id="signupName" type="text" autocomplete="off" required>
+        </label>
+        <label>גיל
+          <input id="signupAge" type="number" min="3" max="14" required>
+        </label>
+        <label>סיסמה
+          <input id="signupPassword" type="password" autocomplete="off" minlength="6" required>
+        </label>
+        <label>אימות סיסמה
+          <input id="signupConfirm" type="password" autocomplete="off" minlength="6" required>
+        </label>
+        <p class="auth-hint">הסיסמה חייבת לפחות 6 תווים</p>
+        <button type="submit" class="auth-submit">צור משתמש</button>
+      </form>
+
+      <div id="authError" class="auth-error"></div>
+      <div id="authLoading" class="auth-loading hidden">טוען...</div>
+    </div>
+  </main>
+
+  <main id="game" class="game hidden">
     <div class="word-card">
       <div id="prompt" class="prompt"></div>
     </div>
@@ -45,6 +91,6 @@
 </div>
 
 <script src="words.js"></script>
-<script src="script.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
