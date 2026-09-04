@@ -701,31 +701,6 @@ function toleranceFor(word) {
   return word.length >= 5 ? 2 : 1;
 }
 
-// Upscales and binarizes the canvas (pure black ink on pure white)
-// before OCR — this is a plain Canvas-pixel operation, so it carries
-// none of the risk of depending on a Tesseract.js API detail we can't
-// verify here, while still meaningfully helping recognition of a
-// single handwritten word.
-function preprocessForOcr(canvas) {
-  const scale = 2;
-  const out = document.createElement("canvas");
-  out.width = canvas.width * scale;
-  out.height = canvas.height * scale;
-  const ctx = out.getContext("2d");
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(canvas, 0, 0, out.width, out.height);
-
-  const imageData = ctx.getImageData(0, 0, out.width, out.height);
-  const d = imageData.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const gray = (d[i] + d[i + 1] + d[i + 2]) / 3;
-    const v = gray > 200 ? 255 : 0;
-    d[i] = d[i + 1] = d[i + 2] = v;
-  }
-  ctx.putImageData(imageData, 0, 0);
-  return out;
-}
-
 // The canvas only ever holds one word, so instead of stripping
 // non-letter characters (which can weld unrelated OCR fragments
 // together into a garbled string), take the single longest run of
@@ -744,20 +719,26 @@ async function checkHandwriteAnswer() {
 
   const lang = answerLanguage(currentRoundType);
   const tessLang = lang === "he" ? "heb" : "eng";
-  const processed = preprocessForOcr(gameEls.handwriteCanvas);
 
   let recognizedText = "";
+  let ocrFailed = false;
   try {
-    const result = await window.Tesseract.recognize(processed, tessLang);
+    const result = await window.Tesseract.recognize(gameEls.handwriteCanvas, tessLang);
     recognizedText = (result.data.text || "").trim();
   } catch (err) {
     console.error("Handwriting OCR failed", err);
+    ocrFailed = true;
   }
 
   const cleaned = longestLetterRun(recognizedText, lang).toLowerCase();
   const target = currentCorrectKey.toLowerCase();
   const isCorrect = cleaned.length > 0 && levenshtein(cleaned, target) <= toleranceFor(target);
-  gameEls.handwriteRecognized.textContent = recognizedText ? `קראתי: ${recognizedText}` : "לא הצלחתי לקרוא";
+
+  gameEls.handwriteRecognized.textContent = ocrFailed
+    ? "שגיאה בקריאה"
+    : recognizedText
+      ? `קראתי: ${recognizedText}`
+      : "לא הצלחתי לקרוא (לא זוהה כתב)";
 
   finishRound(isCorrect, { recognizedText });
 }
