@@ -109,18 +109,32 @@ body {
   transform: rotate(-1.2deg);
 }
 
-.word-emoji {
-  font-size: 76px;
-  line-height: 1;
-  margin-bottom: 10px;
+.prompt {
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.english-word {
+.prompt.kind-emoji {
+  font-size: 92px;
+  line-height: 1;
+}
+
+.prompt.kind-en {
   font-family: 'Baloo 2', ui-rounded, 'Segoe UI', sans-serif;
   font-size: 42px;
   font-weight: 800;
   color: var(--ink);
   direction: ltr;
+}
+
+.prompt.kind-he {
+  font-family: 'Rubik', sans-serif;
+  font-size: 38px;
+  font-weight: 900;
+  color: var(--ink);
+  direction: rtl;
 }
 
 .options {
@@ -156,6 +170,15 @@ body {
 
 .option-btn:disabled {
   cursor: default;
+}
+
+.option-btn.lang-en {
+  direction: ltr;
+}
+
+.option-btn.emoji-option {
+  font-size: 46px;
+  padding: 14px 16px;
 }
 
 .option-btn.correct {

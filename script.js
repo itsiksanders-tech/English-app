@@ -1,8 +1,7 @@
 const els = {
   score: document.getElementById("score"),
   streak: document.getElementById("streak"),
-  wordEmoji: document.getElementById("wordEmoji"),
-  englishWord: document.getElementById("englishWord"),
+  prompt: document.getElementById("prompt"),
   options: document.getElementById("options"),
   feedback: document.getElementById("feedback"),
   game: document.getElementById("game"),
@@ -13,9 +12,18 @@ const els = {
 };
 
 const CONFETTI_EMOJI = ["🎉", "⭐", "🎈", "🏅", "✨"];
-
 const ROUNDS_PER_SESSION = 10;
 const CORRECT_ADVANCE_DELAY = 900;
+
+// Each round shows the word in one form and asks the kid to pick its
+// match in a different form, so a picture is never shown alongside the
+// English word it would give away.
+const ROUND_TYPES = [
+  { prompt: "en", options: "he" },
+  { prompt: "he", options: "en" },
+  { prompt: "emoji", options: "en" },
+  { prompt: "en", options: "emoji" },
+];
 
 let score = 0;
 let streak = 0;
@@ -23,14 +31,40 @@ let round = 0;
 let lastWordIndex = -1;
 let locked = false;
 
-function pickRandom(array, count, exclude = []) {
-  const pool = array.filter((item) => !exclude.includes(item));
+function optionKey(word, kind) {
+  return kind === "he" ? word.he : kind === "en" ? word.en : word.emoji;
+}
+
+function pickRandom(array, count) {
+  const pool = [...array];
   const picked = [];
   while (picked.length < count && pool.length > 0) {
     const i = Math.floor(Math.random() * pool.length);
     picked.push(pool.splice(i, 1)[0]);
   }
   return picked;
+}
+
+function shuffle(array) {
+  const copy = [...array];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function renderPrompt(word, kind) {
+  els.prompt.className = `prompt kind-${kind}`;
+  els.prompt.textContent = optionKey(word, kind);
+}
+
+function renderOption(word, kind) {
+  const btn = document.createElement("button");
+  btn.className = "option-btn" + (kind === "en" ? " lang-en" : kind === "emoji" ? " emoji-option" : "");
+  btn.textContent = optionKey(word, kind);
+  btn.dataset.key = optionKey(word, kind);
+  return btn;
 }
 
 function nextRound() {
@@ -51,40 +85,28 @@ function nextRound() {
   lastWordIndex = index;
 
   const correctWord = WORDS[index];
-  els.wordEmoji.textContent = correctWord.emoji;
-  els.englishWord.textContent = correctWord.en;
+  const roundType = ROUND_TYPES[Math.floor(Math.random() * ROUND_TYPES.length)];
 
-  const wrongWords = pickRandom(
-    WORDS.filter((w) => w.he !== correctWord.he),
-    2
-  );
-  const optionWords = shuffle([correctWord, ...wrongWords]);
+  renderPrompt(correctWord, roundType.prompt);
+
+  const correctKey = optionKey(correctWord, roundType.options);
+  const wrongPool = WORDS.filter((w) => optionKey(w, roundType.options) !== correctKey);
+  const optionWords = shuffle([correctWord, ...pickRandom(wrongPool, 2)]);
 
   els.options.innerHTML = "";
   optionWords.forEach((word) => {
-    const btn = document.createElement("button");
-    btn.className = "option-btn";
-    btn.textContent = word.he;
-    btn.addEventListener("click", () => selectOption(btn, word, correctWord));
+    const btn = renderOption(word, roundType.options);
+    btn.addEventListener("click", () => selectOption(btn, correctKey));
     els.options.appendChild(btn);
   });
 }
 
-function shuffle(array) {
-  const copy = [...array];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function selectOption(button, chosenWord, correctWord) {
+function selectOption(button, correctKey) {
   if (locked) return;
   locked = true;
 
   const buttons = [...els.options.children];
-  const isCorrect = chosenWord.he === correctWord.he;
+  const isCorrect = button.dataset.key === correctKey;
 
   if (isCorrect) {
     button.classList.add("correct");
@@ -95,9 +117,9 @@ function selectOption(button, chosenWord, correctWord) {
   } else {
     button.classList.add("wrong");
     streak = 0;
-    els.feedback.textContent = `לא נכון, התשובה היא ${correctWord.he}`;
+    els.feedback.textContent = `לא נכון, התשובה היא ${correctKey}`;
     els.feedback.className = "feedback show wrong";
-    buttons.find((b) => b.textContent === correctWord.he)?.classList.add("correct");
+    buttons.find((b) => b.dataset.key === correctKey)?.classList.add("correct");
   }
 
   els.score.textContent = score;
