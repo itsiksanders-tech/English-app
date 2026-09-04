@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#6c5ce7">
+<title>למדים אנגלית</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="stat">
+      <span class="stat-emoji">⭐</span>
+      <span id="score">0</span>
+    </div>
+    <div class="stat streak">
+      <span class="stat-emoji">🔥</span>
+      <span id="streak">0</span>
+    </div>
+  </header>
+
+  <main id="game" class="game">
+    <div class="word-card">
+      <div id="wordEmoji" class="word-emoji">🍎</div>
+      <div id="englishWord" class="english-word">apple</div>
+    </div>
+
+    <div id="options" class="options"></div>
+
+    <div id="feedback" class="feedback" aria-live="polite"></div>
+  </main>
+
+  <div id="celebration" class="celebration hidden">
+    <div class="celebration-emoji">🎉</div>
+    <div class="celebration-text">כל הכבוד!</div>
+    <button id="playAgainBtn" class="play-again-btn">לשחק עוד</button>
+  </div>
+
+</div>
+
+<script src="words.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
