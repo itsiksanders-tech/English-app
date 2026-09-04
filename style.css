@@ -751,6 +751,23 @@ body {
 
 /* Hint */
 
+.game-toolbar {
+  display: flex;
+  gap: 10px;
+}
+
+.mode-back-btn {
+  font-family: 'Rubik', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 18px;
+  cursor: pointer;
+}
+
 .hint-btn {
   font-family: 'Rubik', sans-serif;
   font-size: 15px;
@@ -761,6 +778,24 @@ body {
   border-radius: 999px;
   padding: 8px 18px;
   cursor: pointer;
+}
+
+.next-btn {
+  font-family: 'Rubik', sans-serif;
+  font-size: 17px;
+  font-weight: 900;
+  padding: 12px 28px;
+  border: none;
+  border-radius: 999px;
+  background: var(--coral);
+  color: #ffffff;
+  box-shadow: 0 6px 0 var(--coral-deep);
+  cursor: pointer;
+}
+
+.next-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 var(--coral-deep);
 }
 
 .hint-btn:disabled {

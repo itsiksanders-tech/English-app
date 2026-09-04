@@ -282,6 +282,7 @@ const gameEls = {
   score: document.getElementById("score"),
   streak: document.getElementById("streak"),
   prompt: document.getElementById("prompt"),
+  modeBackBtn: document.getElementById("modeBackBtn"),
   hintBtn: document.getElementById("hintBtn"),
   hintReveal: document.getElementById("hintReveal"),
   options: document.getElementById("options"),
@@ -296,6 +297,7 @@ const gameEls = {
   handwriteClear: document.getElementById("handwriteClear"),
   handwriteCheck: document.getElementById("handwriteCheck"),
   feedback: document.getElementById("feedback"),
+  nextBtn: document.getElementById("nextBtn"),
   game: document.getElementById("game"),
   celebration: document.getElementById("celebration"),
   celebrationScore: document.getElementById("celebrationScore"),
@@ -349,6 +351,7 @@ let currentMode = "continuous"; // "continuous" | "sprint" | "photo"
 let score = 0;
 let streak = 0;
 let round = 0;
+let advanceTimer = null;
 let lastWordEn = null;
 let locked = false;
 
@@ -543,6 +546,9 @@ function advanceSprintWord(word, succeeded) {
 // ---- Round dispatch ----
 
 function nextRound() {
+  clearTimeout(advanceTimer);
+  gameEls.nextBtn.classList.add("hidden");
+
   if (currentMode === "sprint") {
     if (allSprintWordsMastered()) {
       showCelebration();
@@ -638,7 +644,13 @@ function finishRound(isCorrect, detail) {
     advanceSprintWord(currentCorrectWord, outcome === "correct");
   }
 
-  setTimeout(nextRound, isCorrect ? CORRECT_ADVANCE_DELAY : CORRECT_ADVANCE_DELAY + 700);
+  // A wrong answer waits for the kid to tap "next" so there's time to
+  // actually read the mistake explanation; a correct one auto-advances.
+  if (outcome === "wrong") {
+    gameEls.nextBtn.classList.remove("hidden");
+  } else {
+    advanceTimer = setTimeout(nextRound, CORRECT_ADVANCE_DELAY);
+  }
 }
 
 function selectOption(button, word) {
@@ -689,6 +701,41 @@ function toleranceFor(word) {
   return word.length >= 5 ? 2 : 1;
 }
 
+// Upscales and binarizes the canvas (pure black ink on pure white)
+// before OCR — this is a plain Canvas-pixel operation, so it carries
+// none of the risk of depending on a Tesseract.js API detail we can't
+// verify here, while still meaningfully helping recognition of a
+// single handwritten word.
+function preprocessForOcr(canvas) {
+  const scale = 2;
+  const out = document.createElement("canvas");
+  out.width = canvas.width * scale;
+  out.height = canvas.height * scale;
+  const ctx = out.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(canvas, 0, 0, out.width, out.height);
+
+  const imageData = ctx.getImageData(0, 0, out.width, out.height);
+  const d = imageData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const gray = (d[i] + d[i + 1] + d[i + 2]) / 3;
+    const v = gray > 200 ? 255 : 0;
+    d[i] = d[i + 1] = d[i + 2] = v;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return out;
+}
+
+// The canvas only ever holds one word, so instead of stripping
+// non-letter characters (which can weld unrelated OCR fragments
+// together into a garbled string), take the single longest run of
+// letters in the right script and grade against that.
+function longestLetterRun(text, lang) {
+  const pattern = lang === "he" ? new RegExp("[\\u0590-\\u05FF]+", "g") : /[a-zA-Z]+/g;
+  const matches = text.match(pattern) || [];
+  return matches.reduce((longest, m) => (m.length > longest.length ? m : longest), "");
+}
+
 async function checkHandwriteAnswer() {
   if (locked) return;
   locked = true;
@@ -696,18 +743,18 @@ async function checkHandwriteAnswer() {
   gameEls.handwriteRecognized.textContent = "קורא...";
 
   const lang = answerLanguage(currentRoundType);
+  const tessLang = lang === "he" ? "heb" : "eng";
+  const processed = preprocessForOcr(gameEls.handwriteCanvas);
+
   let recognizedText = "";
   try {
-    const worker = await getHandwriteWorker(lang);
-    const { data } = await worker.recognize(gameEls.handwriteCanvas);
-    recognizedText = (data.text || "").trim();
+    const result = await window.Tesseract.recognize(processed, tessLang);
+    recognizedText = (result.data.text || "").trim();
   } catch (err) {
     console.error("Handwriting OCR failed", err);
   }
 
-  const hebrewRange = new RegExp("[^\\u0590-\\u05FF]", "g");
-  const stripPattern = lang === "he" ? hebrewRange : /[^a-z]/g;
-  const cleaned = recognizedText.toLowerCase().replace(stripPattern, "");
+  const cleaned = longestLetterRun(recognizedText, lang).toLowerCase();
   const target = currentCorrectKey.toLowerCase();
   const isCorrect = cleaned.length > 0 && levenshtein(cleaned, target) <= toleranceFor(target);
   gameEls.handwriteRecognized.textContent = recognizedText ? `קראתי: ${recognizedText}` : "לא הצלחתי לקרוא";
@@ -740,12 +787,18 @@ gameEls.playAgainBtn.addEventListener("click", () => {
   else startSession();
 });
 
-gameEls.switchModeBtn.addEventListener("click", () => {
+function goToModeSelect() {
+  clearTimeout(advanceTimer);
   activeWords = null;
   activeRoundTypes = null;
   forcedAnswerMode = null;
   showScreen("mode");
-});
+}
+
+gameEls.switchModeBtn.addEventListener("click", goToModeSelect);
+gameEls.modeBackBtn.addEventListener("click", goToModeSelect);
+
+gameEls.nextBtn.addEventListener("click", nextRound);
 
 // ---- Mode picker ----
 
@@ -896,30 +949,6 @@ gameEls.handwriteClear.addEventListener("click", () => {
 });
 
 gameEls.handwriteCheck.addEventListener("click", checkHandwriteAnswer);
-
-// A single reused worker, forced into single-word recognition mode
-// (Tesseract's default assumes a full page layout, which is a poor
-// fit and the main reason accuracy was bad for one handwritten word)
-// with a letter-only whitelist since the canvas only ever holds one
-// word. Re-created only when the target language actually changes.
-const HEBREW_LETTERS = "אבגדהוזחטיכלמנסעפצקרשתךםןףץ";
-let handwriteWorker = null;
-let handwriteWorkerLang = null;
-
-async function getHandwriteWorker(lang) {
-  const tessLang = lang === "he" ? "heb" : "eng";
-  if (handwriteWorker && handwriteWorkerLang === tessLang) return handwriteWorker;
-  if (handwriteWorker) await handwriteWorker.terminate();
-
-  handwriteWorker = await window.Tesseract.createWorker(tessLang);
-  handwriteWorkerLang = tessLang;
-  await handwriteWorker.setParameters({
-    tessedit_pageseg_mode: "8", // single word
-    tessedit_char_whitelist:
-      tessLang === "heb" ? HEBREW_LETTERS : "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-  });
-  return handwriteWorker;
-}
 
 // ---- Photo training: read a page, quiz only on its words ----
 
