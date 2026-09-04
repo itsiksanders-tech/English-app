@@ -1,0 +1,91 @@
+.dashboard-content {
+  flex: 1;
+  padding: 20px 20px 60px;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.dash-title {
+  font-family: 'Baloo 2', ui-rounded, sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: center;
+  margin: 8px 0 20px;
+}
+
+.dashboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.user-report {
+  background: var(--card);
+  border-radius: 22px;
+  padding: 16px 18px;
+  box-shadow: 0 6px 0 var(--shadow);
+}
+
+.user-report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.user-report-name {
+  font-family: 'Baloo 2', ui-rounded, sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.user-report-meta {
+  font-family: 'Rubik', sans-serif;
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.user-report-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.day-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--paper);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 10px;
+  min-width: 92px;
+}
+
+.day-date {
+  font-family: 'Rubik', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.day-stats {
+  font-family: 'Rubik', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.no-data {
+  font-family: 'Rubik', sans-serif;
+  font-size: 14px;
+  color: var(--ink-soft);
+}

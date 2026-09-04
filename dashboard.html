@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#fff7e8">
+<title>לוח בקרה להורים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Rubik:wght@500;600;700;900&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div id="dashUserBar" class="user-bar hidden">
+      <span id="dashGreeting" class="user-greeting">מחובר</span>
+      <button id="dashLogoutBtn" class="logout-btn" type="button" aria-label="התנתקות">⎋</button>
+    </div>
+  </header>
+
+  <main id="dashLoginScreen" class="auth-screen">
+    <div class="auth-card">
+      <h1 class="dash-title">לוח בקרה להורים</h1>
+      <form id="dashLoginForm" class="auth-form">
+        <label>שם
+          <input id="dashName" type="text" autocomplete="off" required>
+        </label>
+        <label>סיסמה
+          <input id="dashPassword" type="password" autocomplete="off" required>
+        </label>
+        <button type="submit" class="auth-submit">התחבר</button>
+      </form>
+      <div id="dashError" class="auth-error"></div>
+      <div id="dashLoading" class="auth-loading hidden">טוען...</div>
+    </div>
+  </main>
+
+  <main id="dashContent" class="dashboard-content hidden">
+    <h1 class="dash-title">לוח בקרה להורים</h1>
+    <div id="dashDenied" class="auth-error hidden">החשבון הזה אינו חשבון מנהל</div>
+    <div id="dashTableBody" class="dashboard-list"></div>
+  </main>
+
+</div>
+
+<script type="module" src="dashboard.js"></script>
+</body>
+</html>

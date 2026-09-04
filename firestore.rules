@@ -2,6 +2,20 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Only readable/writable directly in the Firebase console (the
+    // project owner bypasses rules there) — used to bootstrap the
+    // parent-dashboard admin list without a chicken-and-egg problem.
+    // get() calls below still work: rule evaluation reads bypass a
+    // document's own rules.
+    match /config/{doc} {
+      allow read, write: if false;
+    }
+
+    function isAdmin() {
+      return request.auth != null &&
+        request.auth.uid in get(/databases/$(database)/documents/config/adminUids).data.uids;
+    }
+
     // Maps a lowercase name to the account's internal auth email, so a
     // kid can log in with just their name. Publicly readable (there's
     // nothing sensitive in it), but a name can only ever be claimed
@@ -14,12 +28,19 @@ service cloud.firestore {
     }
 
     // A kid's profile and progress. Only the signed-in owner of this
-    // uid can ever read or write it — this is what makes each account
+    // uid (or the parent dashboard's admin account) can ever read it;
+    // only the owner can write it — this is what makes each account
     // actually private, not just password-gated in the browser.
     match /users/{uid} {
-      allow read, update: if request.auth != null && request.auth.uid == uid;
-      allow create: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create, update: if request.auth != null && request.auth.uid == uid;
       allow delete: if false;
+
+      match /dailyStats/{date} {
+        allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+        allow create, update: if request.auth != null && request.auth.uid == uid;
+        allow delete: if false;
+      }
     }
   }
 }

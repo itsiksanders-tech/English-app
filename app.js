@@ -96,11 +96,32 @@ async function loadProfile(uid) {
   return snap.exists() ? snap.data() : null;
 }
 
+function todayKey() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 function recordAnswer(uid, isCorrect) {
   updateDoc(doc(db, "users", uid), {
     totalCorrect: increment(isCorrect ? 1 : 0),
     totalWrong: increment(isCorrect ? 0 : 1),
   }).catch((err) => console.error("Failed to sync stats", err));
+
+  setDoc(
+    doc(db, "users", uid, "dailyStats", todayKey()),
+    { correct: increment(isCorrect ? 1 : 0), wrong: increment(isCorrect ? 0 : 1) },
+    { merge: true }
+  ).catch((err) => console.error("Failed to sync daily stats", err));
+}
+
+function recordQuizCompleted(uid) {
+  setDoc(
+    doc(db, "users", uid, "dailyStats", todayKey()),
+    { quizzes: increment(1) },
+    { merge: true }
+  ).catch((err) => console.error("Failed to sync quiz count", err));
 }
 
 // ---- Auth UI wiring ----
@@ -422,6 +443,8 @@ function showCelebration() {
   gameEls.game.classList.add("hidden");
   gameEls.celebration.classList.remove("hidden");
   gameEls.celebrationScore.textContent = `${score} מתוך ${ROUNDS_PER_SESSION}`;
+
+  if (currentUid) recordQuizCompleted(currentUid);
 
   gameEls.confettiLayer.innerHTML = "";
   for (let i = 0; i < 18; i++) {
