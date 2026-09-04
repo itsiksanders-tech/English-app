@@ -20,6 +20,7 @@
       <button id="logoutBtn" class="logout-btn" type="button" aria-label="התנתקות">⎋</button>
     </div>
     <div id="gameStats" class="game-stats hidden">
+      <button id="photoBtn" type="button" class="photo-btn" aria-label="תרגול מתמונה" title="תרגול מתמונה">📷</button>
       <div class="stat">
         <span class="stat-emoji">⭐</span>
         <span id="score">0</span>
@@ -29,7 +30,10 @@
         <span id="streak">0</span>
       </div>
     </div>
+    <input id="photoInput" type="file" accept="image/*" capture="environment" class="hidden">
   </header>
+
+  <div id="photoStatus" class="photo-status hidden"></div>
 
   <main id="authScreen" class="auth-screen">
     <div class="auth-card">
@@ -77,6 +81,24 @@
 
     <div id="options" class="options"></div>
 
+    <div id="typeAnswer" class="type-answer hidden">
+      <input id="typeInput" type="text" class="type-input" autocomplete="off" autocapitalize="off" spellcheck="false" dir="ltr" placeholder="הקלד באנגלית">
+      <div id="tapKeyboard" class="tap-keyboard"></div>
+      <div class="type-actions">
+        <button id="typeBackspace" type="button" class="type-action-btn">⌫</button>
+        <button id="typeCheck" type="button" class="type-check-btn">בדוק</button>
+      </div>
+    </div>
+
+    <div id="handwriteAnswer" class="handwrite-answer hidden">
+      <canvas id="handwriteCanvas" class="handwrite-canvas" width="320" height="140"></canvas>
+      <div id="handwriteRecognized" class="handwrite-recognized"></div>
+      <div class="type-actions">
+        <button id="handwriteClear" type="button" class="type-action-btn">נקה</button>
+        <button id="handwriteCheck" type="button" class="type-check-btn">בדוק</button>
+      </div>
+    </div>
+
     <div id="feedback" class="feedback" aria-live="polite"></div>
   </main>
 
@@ -91,6 +113,7 @@
 </div>
 
 <script src="words.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
