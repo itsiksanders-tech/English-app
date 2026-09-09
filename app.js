@@ -700,7 +700,7 @@ function buildHandwriteCanvas(word) {
 
   handwriteCtx.clearRect(0, 0, canvas.width, canvas.height);
   handwriteCtx.strokeStyle = "#2b2140";
-  handwriteCtx.lineWidth = 6 * CANVAS_SCALE;
+  handwriteCtx.lineWidth = 10 * CANVAS_SCALE;
   handwriteCtx.lineCap = "round";
   handwriteCtx.lineJoin = "round";
 
@@ -709,17 +709,39 @@ function buildHandwriteCanvas(word) {
   gameEls.handwriteCheck.disabled = false;
 }
 
+// Crops with a slight overlap into the neighboring columns, so a
+// letter drawn a bit off-center or wider than its column (an "m" or
+// "w") doesn't get clipped right at the edge.
 function cropSlot(index) {
   const w = slotPxInternal();
   const h = gameEls.handwriteCanvas.height;
+  const pad = Math.round(w * 0.2);
+  const canvasWidth = gameEls.handwriteCanvas.width;
+  const srcX = Math.max(0, index * w - pad);
+  const srcRight = Math.min(canvasWidth, (index + 1) * w + pad);
+  const srcW = srcRight - srcX;
+
   const out = document.createElement("canvas");
-  out.width = w;
+  out.width = srcW;
   out.height = h;
   const ctx = out.getContext("2d");
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, w, h);
-  ctx.drawImage(gameEls.handwriteCanvas, index * w, 0, w, h, 0, 0, w, h);
+  ctx.fillRect(0, 0, srcW, h);
+  ctx.drawImage(gameEls.handwriteCanvas, srcX, 0, srcW, h, 0, 0, srcW, h);
   return out;
+}
+
+// A single cropped letter is inherently hard for Tesseract to read
+// with certainty, so English matching also accepts the digit a letter
+// commonly gets misread as (e.g. "1" for "l"/"i", "0" for "o") instead
+// of requiring the exact letter.
+const LETTER_LOOKALIKES = { o: "0", l: "1i", i: "1l", s: "5", z: "2", g: "9", b: "6", q: "9" };
+
+function isLetterMatch(recognizedChars, targetLetter) {
+  const target = targetLetter.toLowerCase();
+  if (recognizedChars.includes(target)) return true;
+  const lookalikes = LETTER_LOOKALIKES[target];
+  return lookalikes ? [...lookalikes].some((c) => recognizedChars.includes(c)) : false;
 }
 
 async function checkHandwriteAnswer() {
@@ -733,7 +755,7 @@ async function checkHandwriteAnswer() {
 
   const lang = answerLanguage(currentRoundType);
   const tessLang = lang === "he" ? "heb" : "eng";
-  const letterPattern = lang === "he" ? new RegExp("[\\u0590-\\u05FF]", "g") : /[a-zA-Z]/g;
+  const scanPattern = lang === "he" ? new RegExp("[\\u0590-\\u05FF]", "g") : /[a-zA-Z0-9]/g;
   const w = slotPxInternal();
   const h = gameEls.handwriteCanvas.height;
   let anyOcrFailed = false;
@@ -749,8 +771,8 @@ async function checkHandwriteAnswer() {
         console.error("Letter OCR failed", err);
         anyOcrFailed = true;
       }
-      const letters = recognized.match(letterPattern) || [];
-      const isMatch = letters.includes(slot.letter.toLowerCase());
+      const chars = recognized.match(scanPattern) || [];
+      const isMatch = lang === "he" ? chars.includes(slot.letter.toLowerCase()) : isLetterMatch(chars, slot.letter);
       const x = i * w;
 
       if (isMatch) {
