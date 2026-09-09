@@ -292,7 +292,7 @@ const gameEls = {
   typeBackspace: document.getElementById("typeBackspace"),
   typeCheck: document.getElementById("typeCheck"),
   handwriteAnswer: document.getElementById("handwriteAnswer"),
-  handwriteCanvas: document.getElementById("handwriteCanvas"),
+  handwriteLetters: document.getElementById("handwriteLetters"),
   handwriteRecognized: document.getElementById("handwriteRecognized"),
   handwriteClear: document.getElementById("handwriteClear"),
   handwriteCheck: document.getElementById("handwriteCheck"),
@@ -446,16 +446,6 @@ function resetTypeInput() {
   gameEls.typeInput.classList.remove("correct", "wrong");
 }
 
-function paintHandwriteCanvasWhite() {
-  handwriteCtx.fillStyle = "#ffffff";
-  handwriteCtx.fillRect(0, 0, gameEls.handwriteCanvas.width, gameEls.handwriteCanvas.height);
-}
-
-function resetHandwriteCanvas() {
-  paintHandwriteCanvasWhite();
-  gameEls.handwriteRecognized.textContent = "";
-  gameEls.handwriteCheck.disabled = false;
-}
 
 function renderRound(correctWord, roundType, answerMode) {
   currentCorrectWord = correctWord;
@@ -472,7 +462,6 @@ function renderRound(correctWord, roundType, answerMode) {
   gameEls.feedback.className = "feedback";
   hideAllAnswerModes();
   resetTypeInput();
-  resetHandwriteCanvas();
 
   renderPrompt(correctWord, roundType.prompt);
 
@@ -496,6 +485,7 @@ function renderRound(correctWord, roundType, answerMode) {
     gameEls.typeInput.focus();
   } else {
     gameEls.handwriteAnswer.classList.remove("hidden");
+    buildHandwriteLetters(currentCorrectKey);
   }
 }
 
@@ -680,67 +670,134 @@ function checkTypedAnswer() {
   finishRound(isCorrect, { typedValue: value });
 }
 
-// Edit distance, used both to forgive small handwriting-recognition
-// slips and (via toleranceFor) scaled to word length.
-function levenshtein(a, b) {
-  const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
-  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
-  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      dp[i][j] =
-        a[i - 1] === b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
+// A word is drawn as one small canvas per letter instead of one canvas
+// for the whole word. On "check", each *unconfirmed* letter is OCR'd
+// on its own — a letter that reads correctly gets locked (green,
+// can't be redrawn) and a letter that doesn't gets cleared for another
+// attempt, so a kid only ever has to retry the letters that didn't
+// come through, not the whole word.
+let letterCells = [];
+let checkingHandwrite = false;
+
+function clearLetterCell(cell) {
+  cell.ctx.fillStyle = "#ffffff";
+  cell.ctx.fillRect(0, 0, cell.canvas.width, cell.canvas.height);
+}
+
+function attachLetterDrawing(canvas, ctx) {
+  let drawing = false;
+  let lastPoint = null;
+
+  function point(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
   }
-  return dp[a.length][b.length];
+
+  canvas.addEventListener("pointerdown", (e) => {
+    if (canvas.classList.contains("locked")) return;
+    drawing = true;
+    lastPoint = point(e);
+    canvas.setPointerCapture(e.pointerId);
+  });
+
+  canvas.addEventListener("pointermove", (e) => {
+    if (!drawing) return;
+    const p = point(e);
+    ctx.beginPath();
+    ctx.moveTo(lastPoint.x, lastPoint.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    lastPoint = p;
+  });
+
+  const stop = () => {
+    drawing = false;
+    lastPoint = null;
+  };
+  canvas.addEventListener("pointerup", stop);
+  canvas.addEventListener("pointercancel", stop);
+  canvas.addEventListener("pointerleave", stop);
 }
 
-function toleranceFor(word) {
-  return word.length >= 5 ? 2 : 1;
-}
+function buildHandwriteLetters(word) {
+  gameEls.handwriteLetters.innerHTML = "";
+  gameEls.handwriteLetters.dir = answerLanguage(currentRoundType) === "he" ? "rtl" : "ltr";
+  gameEls.handwriteRecognized.textContent = "";
+  gameEls.handwriteCheck.disabled = false;
 
-// The canvas only ever holds one word, so instead of stripping
-// non-letter characters (which can weld unrelated OCR fragments
-// together into a garbled string), take the single longest run of
-// letters in the right script and grade against that.
-function longestLetterRun(text, lang) {
-  const pattern = lang === "he" ? new RegExp("[\\u0590-\\u05FF]+", "g") : /[a-zA-Z]+/g;
-  const matches = text.match(pattern) || [];
-  return matches.reduce((longest, m) => (m.length > longest.length ? m : longest), "");
+  letterCells = [...word].map((letter) => {
+    const canvas = document.createElement("canvas");
+    canvas.className = "letter-canvas";
+    canvas.width = 104;
+    canvas.height = 128;
+    const ctx = canvas.getContext("2d");
+    ctx.strokeStyle = "#2b2140";
+    ctx.lineWidth = 8;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    attachLetterDrawing(canvas, ctx);
+    gameEls.handwriteLetters.appendChild(canvas);
+    return { canvas, ctx, letter, locked: false };
+  });
 }
 
 async function checkHandwriteAnswer() {
-  if (locked) return;
-  locked = true;
+  if (locked || checkingHandwrite) return;
+  const pending = letterCells.filter((cell) => !cell.locked);
+  if (pending.length === 0) return;
+
+  checkingHandwrite = true;
   gameEls.handwriteCheck.disabled = true;
   gameEls.handwriteRecognized.textContent = "קורא...";
 
   const lang = answerLanguage(currentRoundType);
   const tessLang = lang === "he" ? "heb" : "eng";
+  const letterPattern = lang === "he" ? new RegExp("[\\u0590-\\u05FF]", "g") : /[a-zA-Z]/g;
+  let anyOcrFailed = false;
 
-  let recognizedText = "";
-  let ocrFailed = false;
   try {
-    const result = await window.Tesseract.recognize(gameEls.handwriteCanvas, tessLang);
-    recognizedText = (result.data.text || "").trim();
-  } catch (err) {
-    console.error("Handwriting OCR failed", err);
-    ocrFailed = true;
+    for (const cell of pending) {
+      let recognized = "";
+      try {
+        const result = await window.Tesseract.recognize(cell.canvas, tessLang);
+        recognized = (result.data.text || "").toLowerCase();
+      } catch (err) {
+        console.error("Letter OCR failed", err);
+        anyOcrFailed = true;
+      }
+      const letters = recognized.match(letterPattern) || [];
+      const isMatch = letters.includes(cell.letter.toLowerCase());
+
+      if (isMatch) {
+        cell.locked = true;
+        cell.canvas.classList.add("locked", "correct");
+      } else {
+        clearLetterCell(cell);
+        cell.canvas.classList.add("wrong");
+        setTimeout(() => cell.canvas.classList.remove("wrong"), 500);
+      }
+    }
+  } finally {
+    checkingHandwrite = false;
+    gameEls.handwriteCheck.disabled = false;
   }
 
-  const cleaned = longestLetterRun(recognizedText, lang).toLowerCase();
-  const target = currentCorrectKey.toLowerCase();
-  const isCorrect = cleaned.length > 0 && levenshtein(cleaned, target) <= toleranceFor(target);
-
-  gameEls.handwriteRecognized.textContent = ocrFailed
-    ? "שגיאה בקריאה"
-    : recognizedText
-      ? `קראתי: ${recognizedText}`
-      : "לא הצלחתי לקרוא (לא זוהה כתב)";
-
-  finishRound(isCorrect, { recognizedText });
+  const remaining = letterCells.filter((cell) => !cell.locked).length;
+  if (remaining === 0) {
+    gameEls.handwriteRecognized.textContent = "";
+    locked = true;
+    finishRound(true, { recognizedText: currentCorrectKey });
+  } else {
+    gameEls.handwriteRecognized.textContent = anyOcrFailed
+      ? "שגיאה בקריאה, נסה שוב"
+      : remaining === letterCells.length
+        ? "לא זוהתה אף אות, נסה לכתוב גדול יותר"
+        : `כתוב מחדש את ${remaining} האותיות המסומנות באדום`;
+  }
 }
 
 function showCelebration() {
@@ -881,51 +938,13 @@ gameEls.typeInput.addEventListener("keydown", (e) => {
 
 gameEls.typeCheck.addEventListener("click", checkTypedAnswer);
 
-// ---- Handwriting canvas (finger or mouse) ----
-
-const handwriteCtx = gameEls.handwriteCanvas.getContext("2d");
-handwriteCtx.strokeStyle = "#2b2140";
-handwriteCtx.lineWidth = 9;
-handwriteCtx.lineCap = "round";
-handwriteCtx.lineJoin = "round";
-paintHandwriteCanvasWhite();
-
-let drawing = false;
-let lastPoint = null;
-
-function canvasPoint(e) {
-  const rect = gameEls.handwriteCanvas.getBoundingClientRect();
-  const scaleX = gameEls.handwriteCanvas.width / rect.width;
-  const scaleY = gameEls.handwriteCanvas.height / rect.height;
-  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
-}
-
-gameEls.handwriteCanvas.addEventListener("pointerdown", (e) => {
-  drawing = true;
-  lastPoint = canvasPoint(e);
-  gameEls.handwriteCanvas.setPointerCapture(e.pointerId);
-});
-
-gameEls.handwriteCanvas.addEventListener("pointermove", (e) => {
-  if (!drawing) return;
-  const point = canvasPoint(e);
-  handwriteCtx.beginPath();
-  handwriteCtx.moveTo(lastPoint.x, lastPoint.y);
-  handwriteCtx.lineTo(point.x, point.y);
-  handwriteCtx.stroke();
-  lastPoint = point;
-});
-
-function stopDrawing() {
-  drawing = false;
-  lastPoint = null;
-}
-gameEls.handwriteCanvas.addEventListener("pointerup", stopDrawing);
-gameEls.handwriteCanvas.addEventListener("pointercancel", stopDrawing);
-gameEls.handwriteCanvas.addEventListener("pointerleave", stopDrawing);
+// ---- Handwriting: clear/check buttons (drawing itself is wired per
+// letter cell in buildHandwriteLetters/attachLetterDrawing above) ----
 
 gameEls.handwriteClear.addEventListener("click", () => {
-  paintHandwriteCanvasWhite();
+  letterCells.forEach((cell) => {
+    if (!cell.locked) clearLetterCell(cell);
+  });
   gameEls.handwriteRecognized.textContent = "";
 });
 
