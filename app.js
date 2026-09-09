@@ -292,7 +292,7 @@ const gameEls = {
   typeBackspace: document.getElementById("typeBackspace"),
   typeCheck: document.getElementById("typeCheck"),
   handwriteAnswer: document.getElementById("handwriteAnswer"),
-  handwriteLetters: document.getElementById("handwriteLetters"),
+  handwriteCanvas: document.getElementById("handwriteCanvas"),
   handwriteRecognized: document.getElementById("handwriteRecognized"),
   handwriteClear: document.getElementById("handwriteClear"),
   handwriteCheck: document.getElementById("handwriteCheck"),
@@ -485,7 +485,7 @@ function renderRound(correctWord, roundType, answerMode) {
     gameEls.typeInput.focus();
   } else {
     gameEls.handwriteAnswer.classList.remove("hidden");
-    buildHandwriteLetters(currentCorrectKey);
+    buildHandwriteCanvas(currentCorrectKey);
   }
 }
 
@@ -670,85 +670,62 @@ function checkTypedAnswer() {
   finishRound(isCorrect, { typedValue: value });
 }
 
-// A word is drawn as one small canvas per letter instead of one canvas
-// for the whole word. On "check", each *unconfirmed* letter is OCR'd
-// on its own — a letter that reads correctly gets locked (green,
-// can't be redrawn) and a letter that doesn't gets cleared for another
-// attempt, so a kid only ever has to retry the letters that didn't
-// come through, not the whole word.
-let letterCells = [];
+// One continuous canvas for the whole word (natural handwriting, no
+// separate boxes to write in) — but internally divided into equal
+// letter-width columns. On "check", each *unconfirmed* column is
+// cropped out and OCR'd on its own: a column that reads correctly is
+// tinted green and locked (that ink won't be touched again); a column
+// that doesn't is erased so just that letter can be rewritten in
+// place, without disturbing the rest of the word.
+const PX_PER_LETTER = 50; // CSS pixels per letter column, as displayed
+const CANVAS_DISPLAY_HEIGHT = 140; // CSS pixels, fixed regardless of word length
+const CANVAS_SCALE = 2; // internal resolution multiplier for crisper strokes/OCR
+
+let letterSlots = []; // [{ letter, locked }]
 let checkingHandwrite = false;
 
-function clearLetterCell(cell) {
-  cell.ctx.fillStyle = "#ffffff";
-  cell.ctx.fillRect(0, 0, cell.canvas.width, cell.canvas.height);
+function slotPxInternal() {
+  return PX_PER_LETTER * CANVAS_SCALE;
 }
 
-function attachLetterDrawing(canvas, ctx) {
-  let drawing = false;
-  let lastPoint = null;
+function buildHandwriteCanvas(word) {
+  const canvas = gameEls.handwriteCanvas;
+  const n = word.length;
 
-  function point(e) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
-  }
+  canvas.width = n * PX_PER_LETTER * CANVAS_SCALE;
+  canvas.height = CANVAS_DISPLAY_HEIGHT * CANVAS_SCALE;
+  canvas.style.width = `${n * PX_PER_LETTER}px`;
+  canvas.style.height = `${CANVAS_DISPLAY_HEIGHT}px`;
+  canvas.style.backgroundImage = `repeating-linear-gradient(to right, var(--line) 0, var(--line) 1px, transparent 1px, transparent ${PX_PER_LETTER}px)`;
 
-  canvas.addEventListener("pointerdown", (e) => {
-    if (canvas.classList.contains("locked")) return;
-    drawing = true;
-    lastPoint = point(e);
-    canvas.setPointerCapture(e.pointerId);
-  });
+  handwriteCtx.clearRect(0, 0, canvas.width, canvas.height);
+  handwriteCtx.strokeStyle = "#2b2140";
+  handwriteCtx.lineWidth = 6 * CANVAS_SCALE;
+  handwriteCtx.lineCap = "round";
+  handwriteCtx.lineJoin = "round";
 
-  canvas.addEventListener("pointermove", (e) => {
-    if (!drawing) return;
-    const p = point(e);
-    ctx.beginPath();
-    ctx.moveTo(lastPoint.x, lastPoint.y);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    lastPoint = p;
-  });
-
-  const stop = () => {
-    drawing = false;
-    lastPoint = null;
-  };
-  canvas.addEventListener("pointerup", stop);
-  canvas.addEventListener("pointercancel", stop);
-  canvas.addEventListener("pointerleave", stop);
-}
-
-function buildHandwriteLetters(word) {
-  gameEls.handwriteLetters.innerHTML = "";
-  gameEls.handwriteLetters.dir = answerLanguage(currentRoundType) === "he" ? "rtl" : "ltr";
+  letterSlots = [...word].map((letter) => ({ letter, locked: false }));
   gameEls.handwriteRecognized.textContent = "";
   gameEls.handwriteCheck.disabled = false;
+}
 
-  letterCells = [...word].map((letter) => {
-    const canvas = document.createElement("canvas");
-    canvas.className = "letter-canvas";
-    canvas.width = 104;
-    canvas.height = 128;
-    const ctx = canvas.getContext("2d");
-    ctx.strokeStyle = "#2b2140";
-    ctx.lineWidth = 8;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    attachLetterDrawing(canvas, ctx);
-    gameEls.handwriteLetters.appendChild(canvas);
-    return { canvas, ctx, letter, locked: false };
-  });
+function cropSlot(index) {
+  const w = slotPxInternal();
+  const h = gameEls.handwriteCanvas.height;
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(gameEls.handwriteCanvas, index * w, 0, w, h, 0, 0, w, h);
+  return out;
 }
 
 async function checkHandwriteAnswer() {
   if (locked || checkingHandwrite) return;
-  const pending = letterCells.filter((cell) => !cell.locked);
-  if (pending.length === 0) return;
+  const pendingIndices = letterSlots.map((s, i) => i).filter((i) => !letterSlots[i].locked);
+  if (pendingIndices.length === 0) return;
 
   checkingHandwrite = true;
   gameEls.handwriteCheck.disabled = true;
@@ -757,28 +734,31 @@ async function checkHandwriteAnswer() {
   const lang = answerLanguage(currentRoundType);
   const tessLang = lang === "he" ? "heb" : "eng";
   const letterPattern = lang === "he" ? new RegExp("[\\u0590-\\u05FF]", "g") : /[a-zA-Z]/g;
+  const w = slotPxInternal();
+  const h = gameEls.handwriteCanvas.height;
   let anyOcrFailed = false;
 
   try {
-    for (const cell of pending) {
+    for (const i of pendingIndices) {
+      const slot = letterSlots[i];
       let recognized = "";
       try {
-        const result = await window.Tesseract.recognize(cell.canvas, tessLang);
+        const result = await window.Tesseract.recognize(cropSlot(i), tessLang);
         recognized = (result.data.text || "").toLowerCase();
       } catch (err) {
         console.error("Letter OCR failed", err);
         anyOcrFailed = true;
       }
       const letters = recognized.match(letterPattern) || [];
-      const isMatch = letters.includes(cell.letter.toLowerCase());
+      const isMatch = letters.includes(slot.letter.toLowerCase());
+      const x = i * w;
 
       if (isMatch) {
-        cell.locked = true;
-        cell.canvas.classList.add("locked", "correct");
+        slot.locked = true;
+        handwriteCtx.fillStyle = "rgba(23, 163, 152, 0.22)";
+        handwriteCtx.fillRect(x, 0, w, h);
       } else {
-        clearLetterCell(cell);
-        cell.canvas.classList.add("wrong");
-        setTimeout(() => cell.canvas.classList.remove("wrong"), 500);
+        handwriteCtx.clearRect(x, 0, w, h);
       }
     }
   } finally {
@@ -786,17 +766,17 @@ async function checkHandwriteAnswer() {
     gameEls.handwriteCheck.disabled = false;
   }
 
-  const remaining = letterCells.filter((cell) => !cell.locked).length;
+  const remaining = letterSlots.filter((s) => !s.locked).length;
   if (remaining === 0) {
     gameEls.handwriteRecognized.textContent = "";
     locked = true;
-    finishRound(true, { recognizedText: currentCorrectKey });
+    finishRound(true, {});
   } else {
     gameEls.handwriteRecognized.textContent = anyOcrFailed
       ? "שגיאה בקריאה, נסה שוב"
-      : remaining === letterCells.length
-        ? "לא זוהתה אף אות, נסה לכתוב גדול יותר"
-        : `כתוב מחדש את ${remaining} האותיות המסומנות באדום`;
+      : remaining === letterSlots.length
+        ? "לא זוהתה אף אות, נסה לכתוב גדול וברור יותר"
+        : `כתוב מחדש את ${remaining} האותיות הריקות`;
   }
 }
 
@@ -938,12 +918,49 @@ gameEls.typeInput.addEventListener("keydown", (e) => {
 
 gameEls.typeCheck.addEventListener("click", checkTypedAnswer);
 
-// ---- Handwriting: clear/check buttons (drawing itself is wired per
-// letter cell in buildHandwriteLetters/attachLetterDrawing above) ----
+// ---- Handwriting canvas (finger or mouse) ----
+
+const handwriteCtx = gameEls.handwriteCanvas.getContext("2d");
+
+let drawing = false;
+let lastPoint = null;
+
+function canvasPoint(e) {
+  const rect = gameEls.handwriteCanvas.getBoundingClientRect();
+  const scaleX = gameEls.handwriteCanvas.width / rect.width;
+  const scaleY = gameEls.handwriteCanvas.height / rect.height;
+  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
+
+gameEls.handwriteCanvas.addEventListener("pointerdown", (e) => {
+  drawing = true;
+  lastPoint = canvasPoint(e);
+  gameEls.handwriteCanvas.setPointerCapture(e.pointerId);
+});
+
+gameEls.handwriteCanvas.addEventListener("pointermove", (e) => {
+  if (!drawing) return;
+  const p = canvasPoint(e);
+  handwriteCtx.beginPath();
+  handwriteCtx.moveTo(lastPoint.x, lastPoint.y);
+  handwriteCtx.lineTo(p.x, p.y);
+  handwriteCtx.stroke();
+  lastPoint = p;
+});
+
+function stopDrawing() {
+  drawing = false;
+  lastPoint = null;
+}
+gameEls.handwriteCanvas.addEventListener("pointerup", stopDrawing);
+gameEls.handwriteCanvas.addEventListener("pointercancel", stopDrawing);
+gameEls.handwriteCanvas.addEventListener("pointerleave", stopDrawing);
 
 gameEls.handwriteClear.addEventListener("click", () => {
-  letterCells.forEach((cell) => {
-    if (!cell.locked) clearLetterCell(cell);
+  const w = slotPxInternal();
+  const h = gameEls.handwriteCanvas.height;
+  letterSlots.forEach((slot, i) => {
+    if (!slot.locked) handwriteCtx.clearRect(i * w, 0, w, h);
   });
   gameEls.handwriteRecognized.textContent = "";
 });

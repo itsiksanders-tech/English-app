@@ -615,32 +615,21 @@ body {
   gap: 12px;
 }
 
-.handwrite-letters {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
+.handwrite-canvas-wrap {
+  width: 100%;
   max-width: 360px;
+  overflow-x: auto;
+  display: flex;
+  justify-content: center;
 }
 
-.letter-canvas {
-  width: 52px;
-  height: 64px;
-  background: var(--card);
+.handwrite-canvas {
+  background-color: var(--card);
   border: 3px dashed var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
+  display: block;
   touch-action: none;
-}
-
-.letter-canvas.correct {
-  border: 3px solid var(--teal-deep);
-  border-style: solid;
-  background: #eafff9;
-}
-
-.letter-canvas.wrong {
-  border-color: var(--coral-deep);
-  animation: shake 0.4s;
+  flex-shrink: 0;
 }
 
 .handwrite-recognized {
