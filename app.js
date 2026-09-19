@@ -296,6 +296,7 @@ const gameEls = {
   handwriteCheck: document.getElementById("handwriteCheck"),
   feedback: document.getElementById("feedback"),
   nextBtn: document.getElementById("nextBtn"),
+  skipBtn: document.getElementById("skipBtn"),
   game: document.getElementById("game"),
   celebration: document.getElementById("celebration"),
   celebrationScore: document.getElementById("celebrationScore"),
@@ -485,6 +486,7 @@ function renderRound(correctWord, roundType, answerMode) {
   locked = false;
   gameEls.feedback.textContent = "";
   gameEls.feedback.className = "feedback";
+  gameEls.skipBtn.classList.add("hidden");
   hideAllAnswerModes();
   resetTypeInput();
 
@@ -507,9 +509,11 @@ function renderRound(correctWord, roundType, answerMode) {
     gameEls.typeInput.placeholder = lang === "he" ? "הקלד בעברית" : "הקלד באנגלית";
     gameEls.typeAnswer.classList.remove("hidden");
     gameEls.typeInput.focus();
+    gameEls.skipBtn.classList.remove("hidden");
   } else {
     gameEls.handwriteAnswer.classList.remove("hidden");
     buildHandwriteCanvas(currentCorrectKey);
+    gameEls.skipBtn.classList.remove("hidden");
   }
 }
 
@@ -665,6 +669,19 @@ function finishRound(isCorrect, detail) {
   } else {
     advanceTimer = setTimeout(nextRound, CORRECT_ADVANCE_DELAY);
   }
+}
+
+// Lets a kid opt out of a typed/handwritten round entirely (typing or
+// handwriting recognition can be genuinely frustrating) with no
+// penalty at all — score, streak, level, and sprint progress are all
+// left untouched, it just moves on.
+function skipRound() {
+  if (locked) return;
+  locked = true;
+  gameEls.skipBtn.classList.add("hidden");
+  gameEls.feedback.textContent = "דילגת על השאלה";
+  gameEls.feedback.className = "feedback show";
+  advanceTimer = setTimeout(nextRound, CORRECT_ADVANCE_DELAY);
 }
 
 function selectOption(button, word) {
@@ -863,6 +880,7 @@ gameEls.switchModeBtn.addEventListener("click", goToModeSelect);
 gameEls.modeBackBtn.addEventListener("click", goToModeSelect);
 
 gameEls.nextBtn.addEventListener("click", nextRound);
+gameEls.skipBtn.addEventListener("click", skipRound);
 
 // ---- Mode picker ----
 

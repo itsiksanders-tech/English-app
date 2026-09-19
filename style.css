@@ -781,6 +781,17 @@ body {
   box-shadow: 0 3px 0 var(--coral-deep);
 }
 
+.skip-btn {
+  font-family: 'Rubik', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .hint-btn:disabled {
   opacity: 0.5;
   cursor: default;
