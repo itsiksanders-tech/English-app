@@ -745,7 +745,7 @@ function buildHandwriteCanvas(word) {
   handwriteCtx.lineCap = "round";
   handwriteCtx.lineJoin = "round";
 
-  letterSlots = [...word].map((letter) => ({ letter, locked: false }));
+  letterSlots = [...word].map((letter) => ({ letter, locked: false, attempts: 0 }));
   gameEls.handwriteRecognized.textContent = "";
   gameEls.handwriteCheck.disabled = false;
 }
@@ -773,10 +773,28 @@ function cropSlot(index) {
 }
 
 // A single cropped letter is inherently hard for Tesseract to read
-// with certainty, so English matching also accepts the digit a letter
-// commonly gets misread as (e.g. "1" for "l"/"i", "0" for "o") instead
-// of requiring the exact letter.
-const LETTER_LOOKALIKES = { o: "0", l: "1i", i: "1l", s: "5", z: "2", g: "9", b: "6", q: "9" };
+// with certainty (it's a printed-text engine, not built for isolated
+// handwritten characters), so English matching also accepts the
+// digit or visually similar round letter a letter commonly gets
+// misread as, instead of requiring the exact character.
+const LETTER_LOOKALIKES = {
+  o: "0ce",
+  l: "1i",
+  i: "1l",
+  s: "5",
+  z: "2",
+  g: "9q",
+  q: "9g",
+  b: "6",
+  e: "co",
+  c: "eo",
+  a: "e",
+};
+
+// After this many failed attempts on the same letter, it's accepted
+// as-is rather than leaving a kid stuck forever on one stubborn
+// letter OCR just won't read.
+const MAX_LETTER_ATTEMPTS = 4;
 
 function isLetterMatch(recognizedChars, targetLetter) {
   const target = targetLetter.toLowerCase();
@@ -821,7 +839,16 @@ async function checkHandwriteAnswer() {
         handwriteCtx.fillStyle = "rgba(23, 163, 152, 0.22)";
         handwriteCtx.fillRect(x, 0, w, h);
       } else {
-        handwriteCtx.clearRect(x, 0, w, h);
+        slot.attempts += 1;
+        if (slot.attempts >= MAX_LETTER_ATTEMPTS) {
+          // Stop making a kid retry a letter OCR just won't read.
+          slot.locked = true;
+          slot.autoAccepted = true;
+          handwriteCtx.fillStyle = "rgba(255, 193, 69, 0.35)";
+          handwriteCtx.fillRect(x, 0, w, h);
+        } else {
+          handwriteCtx.clearRect(x, 0, w, h);
+        }
       }
     }
   } finally {
@@ -830,8 +857,10 @@ async function checkHandwriteAnswer() {
   }
 
   const remaining = letterSlots.filter((s) => !s.locked).length;
+  const autoAcceptedCount = letterSlots.filter((s) => s.autoAccepted).length;
   if (remaining === 0) {
-    gameEls.handwriteRecognized.textContent = "";
+    gameEls.handwriteRecognized.textContent =
+      autoAcceptedCount > 0 ? `${autoAcceptedCount} אותיות התקבלו אחרי כמה ניסיונות` : "";
     locked = true;
     finishRound(true, {});
   } else {
