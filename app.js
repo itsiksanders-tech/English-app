@@ -288,8 +288,6 @@ const gameEls = {
   options: document.getElementById("options"),
   typeAnswer: document.getElementById("typeAnswer"),
   typeInput: document.getElementById("typeInput"),
-  tapKeyboard: document.getElementById("tapKeyboard"),
-  typeBackspace: document.getElementById("typeBackspace"),
   typeCheck: document.getElementById("typeCheck"),
   handwriteAnswer: document.getElementById("handwriteAnswer"),
   handwriteCanvas: document.getElementById("handwriteCanvas"),
@@ -312,11 +310,20 @@ const gameEls = {
   photoStatus: document.getElementById("photoStatus"),
   photoConfigScreen: document.getElementById("photoConfigScreen"),
   photoConfigStartBtn: document.getElementById("photoConfigStartBtn"),
+  continuousConfigScreen: document.getElementById("continuousConfigScreen"),
+  cfgEnHe: document.getElementById("cfgEnHe"),
+  cfgHeEn: document.getElementById("cfgHeEn"),
+  cfgPictures: document.getElementById("cfgPictures"),
+  cfgKeyboard: document.getElementById("cfgKeyboard"),
+  cfgFinger: document.getElementById("cfgFinger"),
+  continuousConfigError: document.getElementById("continuousConfigError"),
+  continuousConfigStartBtn: document.getElementById("continuousConfigStartBtn"),
 };
 
 const screens = {
   auth: authEls.screen,
   mode: gameEls.modeScreen,
+  continuousConfig: gameEls.continuousConfigScreen,
   photoConfig: gameEls.photoConfigScreen,
   game: gameEls.game,
   celebration: gameEls.celebration,
@@ -361,6 +368,23 @@ let activeWords = null;
 let activeRoundTypes = null;
 let forcedAnswerMode = null;
 let pendingPhotoWords = null;
+
+// Continuous mode: which round shapes and answer methods the kid
+// picked on the settings screen. "choice" always stays available so
+// there's always an answerable mode even if keyboard/finger are both
+// unchecked.
+let continuousAllowedAnswerModes = ["choice", "type", "handwrite"];
+
+function buildContinuousRoundTypes(config) {
+  const types = [];
+  if (config.enHe) types.push({ prompt: "en", options: "he" });
+  if (config.heEn) types.push({ prompt: "he", options: "en" });
+  if (config.pictures) {
+    types.push({ prompt: "emoji", options: "en" });
+    types.push({ prompt: "en", options: "emoji" });
+  }
+  return types;
+}
 
 // Sprint mode: 10 words, each tracked through 3 mastery stages.
 let sprintWords = [];
@@ -424,14 +448,15 @@ function currentPool() {
 }
 
 // A typed/handwritten answer isn't offered when the target is a
-// picture (there's nothing to spell). Multiple-choice stays the most
-// common mode otherwise so younger kids still get the scaffolding.
+// picture (there's nothing to spell), and only from the methods the
+// kid enabled on the settings screen. Multiple-choice always stays
+// available so there's always at least one way to answer.
 function pickAnswerMode(roundType) {
-  if (roundType.options === "emoji") return "choice";
-  const r = Math.random();
-  if (r < 0.5) return "choice";
-  if (r < 0.75) return "type";
-  return "handwrite";
+  const allowed =
+    roundType.options === "emoji"
+      ? ["choice"]
+      : continuousAllowedAnswerModes;
+  return allowed[Math.floor(Math.random() * allowed.length)];
 }
 
 function hideAllAnswerModes() {
@@ -480,7 +505,6 @@ function renderRound(correctWord, roundType, answerMode) {
     const lang = answerLanguage(roundType);
     gameEls.typeInput.dir = lang === "he" ? "rtl" : "ltr";
     gameEls.typeInput.placeholder = lang === "he" ? "הקלד בעברית" : "הקלד באנגלית";
-    buildTapKeyboard(lang);
     gameEls.typeAnswer.classList.remove("hidden");
     gameEls.typeInput.focus();
   } else {
@@ -843,10 +867,32 @@ gameEls.nextBtn.addEventListener("click", nextRound);
 // ---- Mode picker ----
 
 gameEls.modeContinuousBtn.addEventListener("click", () => {
+  gameEls.continuousConfigError.textContent = "";
+  showScreen("continuousConfig");
+});
+
+gameEls.continuousConfigStartBtn.addEventListener("click", () => {
+  const config = {
+    enHe: gameEls.cfgEnHe.checked,
+    heEn: gameEls.cfgHeEn.checked,
+    pictures: gameEls.cfgPictures.checked,
+  };
+  const types = buildContinuousRoundTypes(config);
+  if (types.length === 0) {
+    gameEls.continuousConfigError.textContent = "בחר לפחות אפשרות אחת בכיוון ותוכן";
+    return;
+  }
+
   currentMode = "continuous";
   activeWords = null;
-  activeRoundTypes = null;
+  activeRoundTypes = types;
   forcedAnswerMode = null;
+  continuousAllowedAnswerModes = [
+    "choice",
+    ...(gameEls.cfgKeyboard.checked ? ["type"] : []),
+    ...(gameEls.cfgFinger.checked ? ["handwrite"] : []),
+  ];
+
   showScreen("game");
   startSession();
 });
@@ -901,35 +947,7 @@ function useHint() {
 
 gameEls.hintBtn.addEventListener("click", useHint);
 
-// ---- Typed-answer keyboard (device keyboard works too) ----
-
-const KEYBOARD_LAYOUTS = {
-  en: ["qwertyuiop", "asdfghjkl", "zxcvbnm"],
-  he: ["אבגדהוז", "חטיכךלמ", "םנןסעפף", "צץקרשת"],
-};
-
-function buildTapKeyboard(lang) {
-  gameEls.tapKeyboard.innerHTML = "";
-  gameEls.tapKeyboard.dir = lang === "he" ? "rtl" : "ltr";
-  KEYBOARD_LAYOUTS[lang].forEach((row) => {
-    [...row].forEach((letter) => {
-      const key = document.createElement("button");
-      key.type = "button";
-      key.className = "tap-key";
-      key.textContent = letter;
-      key.addEventListener("click", () => {
-        gameEls.typeInput.value += letter;
-        gameEls.typeInput.focus();
-      });
-      gameEls.tapKeyboard.appendChild(key);
-    });
-  });
-}
-
-gameEls.typeBackspace.addEventListener("click", () => {
-  gameEls.typeInput.value = gameEls.typeInput.value.slice(0, -1);
-  gameEls.typeInput.focus();
-});
+// ---- Typed answer (device keyboard only, no on-screen keyboard) ----
 
 gameEls.typeInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {

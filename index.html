@@ -97,6 +97,27 @@
     <div id="photoStatus" class="photo-status hidden"></div>
   </main>
 
+  <div id="continuousConfigScreen" class="photo-config hidden">
+    <h2 class="dash-title">מה לתרגל?</h2>
+    <div class="config-group">
+      <span class="config-label">כיוון ותוכן</span>
+      <div class="config-options">
+        <label class="config-choice"><input type="checkbox" id="cfgEnHe" checked> אנגלית ← עברית</label>
+        <label class="config-choice"><input type="checkbox" id="cfgHeEn" checked> עברית ← אנגלית</label>
+        <label class="config-choice"><input type="checkbox" id="cfgPictures" checked> תמונות</label>
+      </div>
+    </div>
+    <div class="config-group">
+      <span class="config-label">איך לענות</span>
+      <div class="config-options">
+        <label class="config-choice"><input type="checkbox" id="cfgKeyboard" checked> הקלדה במקלדת</label>
+        <label class="config-choice"><input type="checkbox" id="cfgFinger" checked> כתיבה עם האצבע</label>
+      </div>
+    </div>
+    <div id="continuousConfigError" class="auth-error"></div>
+    <button id="continuousConfigStartBtn" type="button" class="auth-submit">התחל</button>
+  </div>
+
   <div id="photoConfigScreen" class="photo-config hidden">
     <h2 class="dash-title">איך לתרגל?</h2>
     <div class="config-group">
@@ -131,9 +152,7 @@
 
     <div id="typeAnswer" class="type-answer hidden">
       <input id="typeInput" type="text" class="type-input" autocomplete="off" autocapitalize="off" spellcheck="false" dir="ltr" placeholder="הקלד באנגלית">
-      <div id="tapKeyboard" class="tap-keyboard"></div>
       <div class="type-actions">
-        <button id="typeBackspace" type="button" class="type-action-btn">⌫</button>
         <button id="typeCheck" type="button" class="type-check-btn">בדוק</button>
       </div>
     </div>
