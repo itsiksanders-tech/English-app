@@ -750,33 +750,13 @@ function buildHandwriteCanvas(word) {
   gameEls.handwriteCheck.disabled = false;
 }
 
-// Crops with a slight overlap into the neighboring columns, so a
-// letter drawn a bit off-center or wider than its column (an "m" or
-// "w") doesn't get clipped right at the edge.
-function cropSlot(index) {
-  const w = slotPxInternal();
-  const h = gameEls.handwriteCanvas.height;
-  const pad = Math.round(w * 0.2);
-  const canvasWidth = gameEls.handwriteCanvas.width;
-  const srcX = Math.max(0, index * w - pad);
-  const srcRight = Math.min(canvasWidth, (index + 1) * w + pad);
-  const srcW = srcRight - srcX;
-
-  const out = document.createElement("canvas");
-  out.width = srcW;
-  out.height = h;
-  const ctx = out.getContext("2d");
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, srcW, h);
-  ctx.drawImage(gameEls.handwriteCanvas, srcX, 0, srcW, h, 0, 0, srcW, h);
-  return out;
-}
-
-// A single cropped letter is inherently hard for Tesseract to read
-// with certainty (it's a printed-text engine, not built for isolated
-// handwritten characters), so English matching also accepts the
-// digit or visually similar round letter a letter commonly gets
-// misread as, instead of requiring the exact character.
+// A single cropped letter loses everything Tesseract actually relies
+// on to read handwriting — the width/baseline/shape relative to its
+// neighbors — so instead of OCR'ing each column alone, the whole
+// drawn word is read at once (much stronger signal) and then aligned
+// against the target word (classic edit-distance with backtrace) to
+// work out which letters came through; only the ones that didn't are
+// cleared for another attempt.
 const LETTER_LOOKALIKES = {
   o: "0ce",
   l: "1i",
@@ -796,11 +776,48 @@ const LETTER_LOOKALIKES = {
 // letter OCR just won't read.
 const MAX_LETTER_ATTEMPTS = 4;
 
-function isLetterMatch(recognizedChars, targetLetter) {
-  const target = targetLetter.toLowerCase();
-  if (recognizedChars.includes(target)) return true;
-  const lookalikes = LETTER_LOOKALIKES[target];
-  return lookalikes ? [...lookalikes].some((c) => recognizedChars.includes(c)) : false;
+function charsMatchLoose(recognizedChar, targetChar, lang) {
+  if (recognizedChar === targetChar) return true;
+  if (lang === "he") return false;
+  const lookalikes = LETTER_LOOKALIKES[targetChar];
+  return lookalikes ? lookalikes.includes(recognizedChar) : false;
+}
+
+// Aligns the OCR'd text against the target word and returns, for each
+// position in the target, whether some recognized character lined up
+// with it. Handles the recognized text being shorter/longer than the
+// target (extra/missing strokes) the same way spell-checkers do.
+function alignRecognizedToTarget(recognized, target, lang) {
+  const n = recognized.length;
+  const m = target.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = 0; i <= n; i++) dp[i][0] = i;
+  for (let j = 0; j <= m; j++) dp[0][j] = j;
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      const match = charsMatchLoose(recognized[i - 1], target[j - 1], lang);
+      dp[i][j] = match ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+
+  const matched = new Array(m).fill(false);
+  let i = n;
+  let j = m;
+  while (i > 0 && j > 0) {
+    if (charsMatchLoose(recognized[i - 1], target[j - 1], lang) && dp[i][j] === dp[i - 1][j - 1]) {
+      matched[j - 1] = true;
+      i--;
+      j--;
+    } else if (dp[i][j] === dp[i - 1][j - 1] + 1) {
+      i--;
+      j--;
+    } else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
+      i--;
+    } else {
+      j--;
+    }
+  }
+  return matched;
 }
 
 async function checkHandwriteAnswer() {
@@ -815,45 +832,47 @@ async function checkHandwriteAnswer() {
   const lang = answerLanguage(currentRoundType);
   const tessLang = lang === "he" ? "heb" : "eng";
   const scanPattern = lang === "he" ? new RegExp("[\\u0590-\\u05FF]", "g") : /[a-zA-Z0-9]/g;
+  const target = currentCorrectKey.toLowerCase();
+
+  let recognizedText = "";
+  let ocrFailed = false;
+  try {
+    const result = await window.Tesseract.recognize(gameEls.handwriteCanvas, tessLang);
+    recognizedText = (result.data.text || "").toLowerCase();
+  } catch (err) {
+    console.error("Handwriting OCR failed", err);
+    ocrFailed = true;
+  }
+
+  checkingHandwrite = false;
+  gameEls.handwriteCheck.disabled = false;
+
+  const recognizedChars = (recognizedText.match(scanPattern) || []).join("");
+  const matched = ocrFailed ? [] : alignRecognizedToTarget(recognizedChars, target, lang);
+
   const w = slotPxInternal();
   const h = gameEls.handwriteCanvas.height;
-  let anyOcrFailed = false;
 
-  try {
-    for (const i of pendingIndices) {
-      const slot = letterSlots[i];
-      let recognized = "";
-      try {
-        const result = await window.Tesseract.recognize(cropSlot(i), tessLang);
-        recognized = (result.data.text || "").toLowerCase();
-      } catch (err) {
-        console.error("Letter OCR failed", err);
-        anyOcrFailed = true;
-      }
-      const chars = recognized.match(scanPattern) || [];
-      const isMatch = lang === "he" ? chars.includes(slot.letter.toLowerCase()) : isLetterMatch(chars, slot.letter);
-      const x = i * w;
+  for (const i of pendingIndices) {
+    const slot = letterSlots[i];
+    const x = i * w;
 
-      if (isMatch) {
+    if (matched[i]) {
+      slot.locked = true;
+      handwriteCtx.fillStyle = "rgba(23, 163, 152, 0.22)";
+      handwriteCtx.fillRect(x, 0, w, h);
+    } else {
+      slot.attempts += 1;
+      if (slot.attempts >= MAX_LETTER_ATTEMPTS) {
+        // Stop making a kid retry a letter OCR just won't read.
         slot.locked = true;
-        handwriteCtx.fillStyle = "rgba(23, 163, 152, 0.22)";
+        slot.autoAccepted = true;
+        handwriteCtx.fillStyle = "rgba(255, 193, 69, 0.35)";
         handwriteCtx.fillRect(x, 0, w, h);
       } else {
-        slot.attempts += 1;
-        if (slot.attempts >= MAX_LETTER_ATTEMPTS) {
-          // Stop making a kid retry a letter OCR just won't read.
-          slot.locked = true;
-          slot.autoAccepted = true;
-          handwriteCtx.fillStyle = "rgba(255, 193, 69, 0.35)";
-          handwriteCtx.fillRect(x, 0, w, h);
-        } else {
-          handwriteCtx.clearRect(x, 0, w, h);
-        }
+        handwriteCtx.clearRect(x, 0, w, h);
       }
     }
-  } finally {
-    checkingHandwrite = false;
-    gameEls.handwriteCheck.disabled = false;
   }
 
   const remaining = letterSlots.filter((s) => !s.locked).length;
@@ -864,10 +883,10 @@ async function checkHandwriteAnswer() {
     locked = true;
     finishRound(true, {});
   } else {
-    gameEls.handwriteRecognized.textContent = anyOcrFailed
+    gameEls.handwriteRecognized.textContent = ocrFailed
       ? "שגיאה בקריאה, נסה שוב"
-      : remaining === letterSlots.length
-        ? "לא זוהתה אף אות, נסה לכתוב גדול וברור יותר"
+      : recognizedChars.length === 0
+        ? "לא זוהה כתב, נסה לכתוב גדול וברור יותר"
         : `כתוב מחדש את ${remaining} האותיות הריקות`;
   }
 }
