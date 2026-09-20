@@ -646,6 +646,10 @@ function finishRound(isCorrect, detail) {
   gameEls.score.textContent = score;
   gameEls.streak.textContent = streak;
 
+  if (outcome !== "wrong") {
+    speakWord(currentCorrectWord.en);
+  }
+
   if (currentProfile && outcome !== "hinted") {
     const countedCorrect = outcome === "correct";
     currentProfile.totalCorrect += countedCorrect ? 1 : 0;
