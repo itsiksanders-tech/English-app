@@ -15,6 +15,7 @@ import {
   query,
   orderBy,
   limit,
+  documentId,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -86,11 +87,11 @@ onAuthStateChanged(auth, async (user) => {
   try {
     await renderDashboard();
   } catch (err) {
+    console.error(err);
     if (err.code === "permission-denied") {
       els.denied.classList.remove("hidden");
     } else {
-      console.error(err);
-      setError("משהו השתבש, נסה שוב");
+      setError(`שגיאה (${err.code || "?"}): ${err.message || err}`);
     }
   }
 });
@@ -101,7 +102,7 @@ async function renderDashboard() {
   for (const userDoc of usersSnap.docs) {
     const u = userDoc.data();
     const dailySnap = await getDocs(
-      query(collection(db, "users", userDoc.id, "dailyStats"), orderBy("__name__", "desc"), limit(14))
+      query(collection(db, "users", userDoc.id, "dailyStats"), orderBy(documentId(), "desc"), limit(14))
     );
     rows.push({
       name: u.name,

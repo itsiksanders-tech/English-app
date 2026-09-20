@@ -20,6 +20,7 @@ import {
   query,
   orderBy,
   limit,
+  documentId,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -319,7 +320,7 @@ async function renderMyStats() {
   gameEls.myStatsDays.innerHTML = "";
   try {
     const dailySnap = await getDocs(
-      query(collection(db, "users", currentUid, "dailyStats"), orderBy("__name__", "desc"), limit(7))
+      query(collection(db, "users", currentUid, "dailyStats"), orderBy(documentId(), "desc"), limit(7))
     );
     if (dailySnap.docs.length === 0) {
       const empty = document.createElement("span");
@@ -335,7 +336,9 @@ async function renderMyStats() {
     console.error("Failed to load daily stats", err);
     const errorEl = document.createElement("span");
     errorEl.className = "no-data";
-    errorEl.textContent = `שגיאה בטעינת הנתונים: ${err.code || err.message || err}`;
+    errorEl.style.whiteSpace = "pre-wrap";
+    errorEl.style.wordBreak = "break-all";
+    errorEl.textContent = `שגיאה בטעינת הנתונים (${err.code || "?"}): ${err.message || err}`;
     gameEls.myStatsDays.appendChild(errorEl);
   }
 }
