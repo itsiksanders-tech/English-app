@@ -109,7 +109,7 @@ function recordAnswer(uid, isCorrect, answerMode) {
     totalWrong: increment(isCorrect ? 0 : 1),
   }).catch((err) => console.error("Failed to sync stats", err));
 
-  const modeKey = answerMode === "type" ? "type" : "choice";
+  const modeKey = answerMode === "choice" ? "choice" : answerMode;
   setDoc(
     doc(db, "users", uid, "dailyStats", todayKey()),
     {
@@ -292,6 +292,7 @@ const gameEls = {
   modeBackBtn: document.getElementById("modeBackBtn"),
   hintBtn: document.getElementById("hintBtn"),
   hintReveal: document.getElementById("hintReveal"),
+  typeChoiceHint: document.getElementById("typeChoiceHint"),
   options: document.getElementById("options"),
   typeAnswer: document.getElementById("typeAnswer"),
   typeInput: document.getElementById("typeInput"),
@@ -361,7 +362,7 @@ const ROUND_TYPES = [
 ];
 
 const SPRINT_WORD_COUNT = 10;
-const SPRINT_STAGES = ["choice", "type"];
+const SPRINT_STAGES = ["choice", "typeChoice", "type"];
 
 let currentMode = "continuous"; // "continuous" | "sprint" | "photo"
 let score = 0;
@@ -381,7 +382,7 @@ let pendingPhotoWords = null;
 // Continuous mode: which round shapes and answer methods the kid
 // picked on the settings screen. "choice" always stays available so
 // there's always an answerable mode even if keyboard is unchecked.
-let continuousAllowedAnswerModes = ["choice", "type"];
+let continuousAllowedAnswerModes = ["choice", "typeChoice", "type"];
 
 function buildContinuousRoundTypes(config) {
   const types = [];
@@ -469,7 +470,33 @@ function pickAnswerMode(roundType) {
 
 function hideAllAnswerModes() {
   gameEls.options.classList.add("hidden");
+  gameEls.typeChoiceHint.classList.add("hidden");
   gameEls.typeAnswer.classList.add("hidden");
+}
+
+function renderOptionButtons(correctWord, roundType, interactive) {
+  const sourcePool = currentPool();
+  const wrongPool = sourcePool.filter((w) => optionKey(w, roundType.options) !== currentCorrectKey);
+  const optionWords = shuffle([correctWord, ...pickRandom(wrongPool, 2)]);
+  gameEls.options.innerHTML = "";
+  optionWords.forEach((word) => {
+    const btn = renderOption(word, roundType.options);
+    if (interactive) {
+      btn.addEventListener("click", () => selectOption(btn, word));
+    } else {
+      btn.disabled = true;
+    }
+    gameEls.options.appendChild(btn);
+  });
+}
+
+function showTypedInput(roundType) {
+  const lang = answerLanguage(roundType);
+  gameEls.typeInput.dir = lang === "he" ? "rtl" : "ltr";
+  gameEls.typeInput.placeholder = lang === "he" ? "הקלד בעברית" : "הקלד באנגלית";
+  gameEls.typeAnswer.classList.remove("hidden");
+  buildTapKeyboard(lang);
+  gameEls.skipBtn.classList.remove("hidden");
 }
 
 function resetTypeInput() {
@@ -500,22 +527,14 @@ function renderRound(correctWord, roundType, answerMode) {
 
   if (answerMode === "choice") {
     gameEls.options.classList.remove("hidden");
-    const sourcePool = currentPool();
-    const wrongPool = sourcePool.filter((w) => optionKey(w, roundType.options) !== currentCorrectKey);
-    const optionWords = shuffle([correctWord, ...pickRandom(wrongPool, 2)]);
-    gameEls.options.innerHTML = "";
-    optionWords.forEach((word) => {
-      const btn = renderOption(word, roundType.options);
-      btn.addEventListener("click", () => selectOption(btn, word));
-      gameEls.options.appendChild(btn);
-    });
+    renderOptionButtons(correctWord, roundType, true);
+  } else if (answerMode === "typeChoice") {
+    gameEls.options.classList.remove("hidden");
+    gameEls.typeChoiceHint.classList.remove("hidden");
+    renderOptionButtons(correctWord, roundType, false);
+    showTypedInput(roundType);
   } else {
-    const lang = answerLanguage(roundType);
-    gameEls.typeInput.dir = lang === "he" ? "rtl" : "ltr";
-    gameEls.typeInput.placeholder = lang === "he" ? "הקלד בעברית" : "הקלד באנגלית";
-    gameEls.typeAnswer.classList.remove("hidden");
-    buildTapKeyboard(lang);
-    gameEls.skipBtn.classList.remove("hidden");
+    showTypedInput(roundType);
   }
 }
 
@@ -772,7 +791,7 @@ gameEls.continuousConfigStartBtn.addEventListener("click", () => {
   activeWords = null;
   activeRoundTypes = types;
   forcedAnswerMode = null;
-  continuousAllowedAnswerModes = ["choice", ...(gameEls.cfgKeyboard.checked ? ["type"] : [])];
+  continuousAllowedAnswerModes = ["choice", ...(gameEls.cfgKeyboard.checked ? ["typeChoice", "type"] : [])];
 
   showScreen("game");
   startSession();
@@ -810,9 +829,9 @@ function useHint() {
 
   speakWord(currentCorrectWord.en);
 
-  if (currentAnswerMode === "choice") {
+  if (currentAnswerMode === "choice" || currentAnswerMode === "typeChoice") {
     const wrongButtons = [...gameEls.options.children].filter(
-      (b) => b.dataset.key !== currentCorrectKey && !b.disabled
+      (b) => b.dataset.key !== currentCorrectKey && !b.classList.contains("eliminated")
     );
     const pick = wrongButtons[Math.floor(Math.random() * wrongButtons.length)];
     if (pick) {

@@ -369,6 +369,15 @@ body {
   .option-btn.wrong { animation: none; }
 }
 
+.type-choice-hint {
+  text-align: center;
+  font-family: 'Rubik', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+
 .feedback {
   min-height: 30px;
   font-family: 'Rubik', sans-serif;

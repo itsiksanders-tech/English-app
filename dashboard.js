@@ -150,11 +150,12 @@ function renderUserRow(row) {
 
       const byMode = d.byMode || {};
       const choiceCorrect = byMode.choice?.correct || 0;
+      const typeChoiceCorrect = byMode.typeChoice?.correct || 0;
       const typeCorrect = byMode.type?.correct || 0;
-      if (choiceCorrect || typeCorrect) {
+      if (choiceCorrect || typeChoiceCorrect || typeCorrect) {
         const modesEl = document.createElement("span");
         modesEl.className = "day-modes";
-        modesEl.textContent = `בחירה: ${choiceCorrect} · הקלדה: ${typeCorrect}`;
+        modesEl.textContent = `בחירה: ${choiceCorrect} · בחירה+הקלדה: ${typeChoiceCorrect} · הקלדה: ${typeCorrect}`;
         chip.appendChild(modesEl);
       }
 
