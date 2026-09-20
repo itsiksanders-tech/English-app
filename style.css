@@ -341,6 +341,28 @@ body {
   direction: ltr;
 }
 
+.options.options-compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.options.options-compact .option-btn {
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 14px;
+  box-shadow: none;
+  transform: none;
+}
+
+.options.options-compact .option-btn.emoji-option {
+  font-size: 22px;
+  padding: 6px 10px;
+}
+
 .option-btn.emoji-option {
   font-size: 46px;
   padding: 14px 16px;

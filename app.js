@@ -479,6 +479,7 @@ function renderOptionButtons(correctWord, roundType, interactive) {
   const wrongPool = sourcePool.filter((w) => optionKey(w, roundType.options) !== currentCorrectKey);
   const optionWords = shuffle([correctWord, ...pickRandom(wrongPool, 2)]);
   gameEls.options.innerHTML = "";
+  gameEls.options.classList.toggle("options-compact", !interactive);
   optionWords.forEach((word) => {
     const btn = renderOption(word, roundType.options);
     if (interactive) {
