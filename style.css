@@ -842,20 +842,79 @@ body {
   padding: 10px 14px;
 }
 
-.photo-word-choice input {
+.photo-word-choice input[type="checkbox"] {
   width: 18px;
   height: 18px;
   accent-color: var(--teal);
   flex-shrink: 0;
 }
 
-.photo-word-en {
-  direction: ltr;
-  font-weight: 800;
+.photo-word-en-input,
+.photo-word-he-input {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Rubik', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 10px;
 }
 
-.photo-word-he {
+.photo-word-en-input {
+  direction: ltr;
+}
+
+.photo-word-he-input {
+  direction: rtl;
   color: var(--ink-soft);
+}
+
+.photo-word-en-input:focus,
+.photo-word-he-input:focus {
+  outline: none;
+  border-color: var(--teal);
+}
+
+.photo-word-add {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.photo-word-add-input {
+  flex: 1;
+  min-width: 100px;
+  font-family: 'Rubik', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.photo-word-add-input:focus {
+  outline: none;
+  border-color: var(--teal);
+}
+
+.photo-word-add-btn {
+  font-family: 'Rubik', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffffff;
+  background: var(--teal);
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 /* Hint */

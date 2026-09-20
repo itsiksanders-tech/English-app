@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Rubik:wght@500;600;700;900&display=swap">
-<link rel="stylesheet" href="style.css?v=20260920g">
+<link rel="stylesheet" href="style.css?v=20260920h">
 </head>
 <body>
 <div class="app">
@@ -124,8 +124,13 @@
 
   <div id="photoWordsScreen" class="photo-config hidden">
     <h2 class="dash-title">אילו מילים לתרגל?</h2>
-    <p class="auth-hint">בטל סימון למילים שלא מתאימות</p>
+    <p class="auth-hint">אפשר לערוך, לבטל סימון, או להוסיף מילים משלך</p>
     <div id="photoWordsList" class="photo-words-list"></div>
+    <div class="photo-word-add">
+      <input id="photoWordAddEn" type="text" class="photo-word-add-input" placeholder="מילה באנגלית" dir="ltr" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <input id="photoWordAddHe" type="text" class="photo-word-add-input" placeholder="תרגום בעברית" dir="rtl" autocomplete="off" spellcheck="false">
+      <button id="photoWordAddBtn" type="button" class="photo-word-add-btn">+ הוסף</button>
+    </div>
     <div id="photoWordsError" class="auth-error"></div>
     <button id="photoWordsContinueBtn" type="button" class="auth-submit">המשך</button>
   </div>
@@ -182,8 +187,8 @@
 
 </div>
 
-<script src="words.js?v=20260920g"></script>
+<script src="words.js?v=20260920h"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
-<script type="module" src="app.js?v=20260920g"></script>
+<script type="module" src="app.js?v=20260920h"></script>
 </body>
 </html>

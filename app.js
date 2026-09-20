@@ -373,6 +373,9 @@ const gameEls = {
   photoConfigStartBtn: document.getElementById("photoConfigStartBtn"),
   photoWordsScreen: document.getElementById("photoWordsScreen"),
   photoWordsList: document.getElementById("photoWordsList"),
+  photoWordAddEn: document.getElementById("photoWordAddEn"),
+  photoWordAddHe: document.getElementById("photoWordAddHe"),
+  photoWordAddBtn: document.getElementById("photoWordAddBtn"),
   photoWordsError: document.getElementById("photoWordsError"),
   photoWordsContinueBtn: document.getElementById("photoWordsContinueBtn"),
   continuousConfigScreen: document.getElementById("continuousConfigScreen"),
@@ -1116,33 +1119,75 @@ async function resolvePhotoWords(file) {
   showScreen("photoWords");
 }
 
+function buildPhotoWordRow(word) {
+  const row = document.createElement("div");
+  row.className = "photo-word-choice";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = true;
+
+  const enInput = document.createElement("input");
+  enInput.type = "text";
+  enInput.className = "photo-word-en-input";
+  enInput.autocomplete = "off";
+  enInput.autocapitalize = "off";
+  enInput.spellcheck = false;
+  enInput.value = word.en;
+
+  const heInput = document.createElement("input");
+  heInput.type = "text";
+  heInput.className = "photo-word-he-input";
+  heInput.autocomplete = "off";
+  heInput.spellcheck = false;
+  heInput.value = word.he;
+
+  row.append(checkbox, enInput, heInput);
+  return row;
+}
+
 function renderPhotoWordsChecklist() {
   gameEls.photoWordsList.innerHTML = "";
   gameEls.photoWordsError.textContent = "";
-  pendingPhotoWords.forEach((word, i) => {
-    const label = document.createElement("label");
-    label.className = "photo-word-choice";
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = true;
-    checkbox.dataset.index = String(i);
-    const en = document.createElement("span");
-    en.className = "photo-word-en";
-    en.textContent = word.en;
-    const he = document.createElement("span");
-    he.className = "photo-word-he";
-    he.textContent = word.he;
-    label.append(checkbox, en, he);
-    gameEls.photoWordsList.appendChild(label);
+  pendingPhotoWords.forEach((word) => {
+    gameEls.photoWordsList.appendChild(buildPhotoWordRow(word));
   });
 }
 
+function addManualPhotoWord() {
+  const en = gameEls.photoWordAddEn.value.trim().toLowerCase();
+  const he = gameEls.photoWordAddHe.value.trim();
+  if (!en || !he) return;
+  gameEls.photoWordsList.appendChild(buildPhotoWordRow({ en, he }));
+  gameEls.photoWordAddEn.value = "";
+  gameEls.photoWordAddHe.value = "";
+  gameEls.photoWordAddEn.focus();
+}
+
+gameEls.photoWordAddBtn.addEventListener("click", addManualPhotoWord);
+[gameEls.photoWordAddEn, gameEls.photoWordAddHe].forEach((input) => {
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addManualPhotoWord();
+    }
+  });
+});
+
 gameEls.photoWordsContinueBtn.addEventListener("click", () => {
-  const checked = [...gameEls.photoWordsList.querySelectorAll('input[type="checkbox"]:checked')].map(
-    (cb) => pendingPhotoWords[Number(cb.dataset.index)]
-  );
+  const rows = [...gameEls.photoWordsList.querySelectorAll(".photo-word-choice")];
+  const checked = rows
+    .filter((row) => row.querySelector('input[type="checkbox"]').checked)
+    .map((row) => ({
+      en: row.querySelector(".photo-word-en-input").value.trim().toLowerCase(),
+      he: row.querySelector(".photo-word-he-input").value.trim(),
+      emoji: null,
+      difficulty: null,
+    }))
+    .filter((w) => w.en && w.he);
+
   if (checked.length < 3) {
-    gameEls.photoWordsError.textContent = "בחר לפחות 3 מילים";
+    gameEls.photoWordsError.textContent = "צריך לפחות 3 מילים מסומנות עם תרגום";
     return;
   }
   pendingPhotoWords = checked;
