@@ -1039,19 +1039,31 @@ async function preprocessPhotoForOcr(file) {
   return canvas;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Free, no-signup translation endpoint (MyMemory) — good enough for
 // single common words, no billing/account setup required. Quality can
-// be uneven for uncommon words since it's a community-run service.
-async function translateWord(word) {
+// be uneven for uncommon words since it's a community-run service,
+// and rapid back-to-back requests can get rate-limited — one retry
+// after a short pause recovers most of those instead of just
+// silently dropping the word.
+async function translateWord(word, attempt = 0) {
   try {
     const res = await fetch(
       `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|he`
     );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const translated = data?.responseData?.translatedText;
     if (!translated || translated.toLowerCase() === word.toLowerCase()) return null;
     return translated;
   } catch (err) {
+    if (attempt < 1) {
+      await sleep(700);
+      return translateWord(word, attempt + 1);
+    }
     console.error("Translation failed", err);
     return null;
   }
@@ -1070,15 +1082,16 @@ async function resolvePhotoWords(file) {
     return;
   }
 
-  const candidates = [...new Set((text.match(/[A-Za-z]{2,}/g) || []).map((w) => w.toLowerCase()))].slice(0, 20);
+  const candidates = [...new Set((text.match(/[A-Za-z]{2,}/g) || []).map((w) => w.toLowerCase()))].slice(0, 40);
   if (candidates.length === 0) {
     setPhotoStatus("לא נמצאו מילים באנגלית בתמונה", true);
     return;
   }
 
-  setPhotoStatus(`מתרגם ${candidates.length} מילים...`);
   const resolved = [];
-  for (const word of candidates) {
+  for (let i = 0; i < candidates.length; i++) {
+    const word = candidates[i];
+    setPhotoStatus(`מתרגם מילים... (${i + 1}/${candidates.length})`);
     const known = window.WORDS.find((w) => w.en === word);
     if (known) {
       resolved.push(known);
@@ -1086,6 +1099,10 @@ async function resolvePhotoWords(file) {
     }
     const he = await translateWord(word);
     if (he) resolved.push({ en: word, he, emoji: null, difficulty: null });
+    // A small pause between real network calls avoids tripping the
+    // free translation API's rate limit, which was silently dropping
+    // most words past the first handful.
+    await sleep(200);
   }
 
   if (resolved.length < 3) {
