@@ -315,11 +315,12 @@ function renderDayChip(day) {
 
 async function renderMyStats() {
   if (!currentUid) return;
+  gameEls.myStats.classList.remove("hidden");
+  gameEls.myStatsDays.innerHTML = "";
   try {
     const dailySnap = await getDocs(
       query(collection(db, "users", currentUid, "dailyStats"), orderBy("__name__", "desc"), limit(7))
     );
-    gameEls.myStatsDays.innerHTML = "";
     if (dailySnap.docs.length === 0) {
       const empty = document.createElement("span");
       empty.className = "no-data";
@@ -330,9 +331,12 @@ async function renderMyStats() {
         gameEls.myStatsDays.appendChild(renderDayChip({ date: d.id, ...d.data() }));
       });
     }
-    gameEls.myStats.classList.remove("hidden");
   } catch (err) {
     console.error("Failed to load daily stats", err);
+    const errorEl = document.createElement("span");
+    errorEl.className = "no-data";
+    errorEl.textContent = `שגיאה בטעינת הנתונים: ${err.code || err.message || err}`;
+    gameEls.myStatsDays.appendChild(errorEl);
   }
 }
 
