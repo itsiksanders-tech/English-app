@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Rubik:wght@500;600;700;900&display=swap">
-<link rel="stylesheet" href="style.css?v=20260920a">
+<link rel="stylesheet" href="style.css?v=20260920b">
 </head>
 <body>
 <div class="app">
@@ -151,8 +151,10 @@
     <div id="options" class="options"></div>
 
     <div id="typeAnswer" class="type-answer hidden">
-      <input id="typeInput" type="text" class="type-input" autocomplete="off" autocapitalize="off" spellcheck="false" dir="ltr" placeholder="הקלד באנגלית">
+      <input id="typeInput" type="text" class="type-input" autocomplete="off" autocapitalize="off" spellcheck="false" readonly inputmode="none" dir="ltr" placeholder="הקלד באנגלית">
+      <div id="tapKeyboard" class="tap-keyboard"></div>
       <div class="type-actions">
+        <button id="typeBackspace" type="button" class="type-action-btn">⌫</button>
         <button id="typeCheck" type="button" class="type-check-btn">בדוק</button>
       </div>
     </div>
@@ -174,8 +176,8 @@
 
 </div>
 
-<script src="words.js?v=20260920a"></script>
+<script src="words.js?v=20260920b"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
-<script type="module" src="app.js?v=20260920a"></script>
+<script type="module" src="app.js?v=20260920b"></script>
 </body>
 </html>

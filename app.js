@@ -295,6 +295,8 @@ const gameEls = {
   options: document.getElementById("options"),
   typeAnswer: document.getElementById("typeAnswer"),
   typeInput: document.getElementById("typeInput"),
+  tapKeyboard: document.getElementById("tapKeyboard"),
+  typeBackspace: document.getElementById("typeBackspace"),
   typeCheck: document.getElementById("typeCheck"),
   feedback: document.getElementById("feedback"),
   nextBtn: document.getElementById("nextBtn"),
@@ -512,7 +514,7 @@ function renderRound(correctWord, roundType, answerMode) {
     gameEls.typeInput.dir = lang === "he" ? "rtl" : "ltr";
     gameEls.typeInput.placeholder = lang === "he" ? "הקלד בעברית" : "הקלד באנגלית";
     gameEls.typeAnswer.classList.remove("hidden");
-    gameEls.typeInput.focus();
+    buildTapKeyboard(lang);
     gameEls.skipBtn.classList.remove("hidden");
   }
 }
@@ -822,13 +824,32 @@ function useHint() {
 
 gameEls.hintBtn.addEventListener("click", useHint);
 
-// ---- Typed answer (device keyboard only, no on-screen keyboard) ----
+// ---- Typed answer (on-screen keyboard only, device keyboard suppressed) ----
 
-gameEls.typeInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    checkTypedAnswer();
-  }
+const KEYBOARD_LAYOUTS = {
+  en: ["qwertyuiop", "asdfghjkl", "zxcvbnm"],
+  he: ["אבגדהוז", "חטיכךלמ", "םנןסעפף", "צץקרשת"],
+};
+
+function buildTapKeyboard(lang) {
+  gameEls.tapKeyboard.innerHTML = "";
+  gameEls.tapKeyboard.dir = lang === "he" ? "rtl" : "ltr";
+  KEYBOARD_LAYOUTS[lang].forEach((row) => {
+    [...row].forEach((letter) => {
+      const key = document.createElement("button");
+      key.type = "button";
+      key.className = "tap-key";
+      key.textContent = letter;
+      key.addEventListener("click", () => {
+        gameEls.typeInput.value += letter;
+      });
+      gameEls.tapKeyboard.appendChild(key);
+    });
+  });
+}
+
+gameEls.typeBackspace.addEventListener("click", () => {
+  gameEls.typeInput.value = gameEls.typeInput.value.slice(0, -1);
 });
 
 gameEls.typeCheck.addEventListener("click", checkTypedAnswer);
