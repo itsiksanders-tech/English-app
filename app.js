@@ -103,15 +103,22 @@ function todayKey() {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
-function recordAnswer(uid, isCorrect) {
+function recordAnswer(uid, isCorrect, answerMode) {
   updateDoc(doc(db, "users", uid), {
     totalCorrect: increment(isCorrect ? 1 : 0),
     totalWrong: increment(isCorrect ? 0 : 1),
   }).catch((err) => console.error("Failed to sync stats", err));
 
+  const modeKey = answerMode === "type" ? "type" : "choice";
   setDoc(
     doc(db, "users", uid, "dailyStats", todayKey()),
-    { correct: increment(isCorrect ? 1 : 0), wrong: increment(isCorrect ? 0 : 1) },
+    {
+      correct: increment(isCorrect ? 1 : 0),
+      wrong: increment(isCorrect ? 0 : 1),
+      byMode: {
+        [modeKey]: { correct: increment(isCorrect ? 1 : 0), wrong: increment(isCorrect ? 0 : 1) },
+      },
+    },
     { merge: true }
   ).catch((err) => console.error("Failed to sync daily stats", err));
 }
@@ -289,11 +296,6 @@ const gameEls = {
   typeAnswer: document.getElementById("typeAnswer"),
   typeInput: document.getElementById("typeInput"),
   typeCheck: document.getElementById("typeCheck"),
-  handwriteAnswer: document.getElementById("handwriteAnswer"),
-  handwriteCanvas: document.getElementById("handwriteCanvas"),
-  handwriteRecognized: document.getElementById("handwriteRecognized"),
-  handwriteClear: document.getElementById("handwriteClear"),
-  handwriteCheck: document.getElementById("handwriteCheck"),
   feedback: document.getElementById("feedback"),
   nextBtn: document.getElementById("nextBtn"),
   skipBtn: document.getElementById("skipBtn"),
@@ -311,12 +313,15 @@ const gameEls = {
   photoStatus: document.getElementById("photoStatus"),
   photoConfigScreen: document.getElementById("photoConfigScreen"),
   photoConfigStartBtn: document.getElementById("photoConfigStartBtn"),
+  photoWordsScreen: document.getElementById("photoWordsScreen"),
+  photoWordsList: document.getElementById("photoWordsList"),
+  photoWordsError: document.getElementById("photoWordsError"),
+  photoWordsContinueBtn: document.getElementById("photoWordsContinueBtn"),
   continuousConfigScreen: document.getElementById("continuousConfigScreen"),
   cfgEnHe: document.getElementById("cfgEnHe"),
   cfgHeEn: document.getElementById("cfgHeEn"),
   cfgPictures: document.getElementById("cfgPictures"),
   cfgKeyboard: document.getElementById("cfgKeyboard"),
-  cfgFinger: document.getElementById("cfgFinger"),
   continuousConfigError: document.getElementById("continuousConfigError"),
   continuousConfigStartBtn: document.getElementById("continuousConfigStartBtn"),
 };
@@ -325,6 +330,7 @@ const screens = {
   auth: authEls.screen,
   mode: gameEls.modeScreen,
   continuousConfig: gameEls.continuousConfigScreen,
+  photoWords: gameEls.photoWordsScreen,
   photoConfig: gameEls.photoConfigScreen,
   game: gameEls.game,
   celebration: gameEls.celebration,
@@ -353,7 +359,7 @@ const ROUND_TYPES = [
 ];
 
 const SPRINT_WORD_COUNT = 10;
-const SPRINT_STAGES = ["choice", "type", "handwrite"];
+const SPRINT_STAGES = ["choice", "type"];
 
 let currentMode = "continuous"; // "continuous" | "sprint" | "photo"
 let score = 0;
@@ -372,9 +378,8 @@ let pendingPhotoWords = null;
 
 // Continuous mode: which round shapes and answer methods the kid
 // picked on the settings screen. "choice" always stays available so
-// there's always an answerable mode even if keyboard/finger are both
-// unchecked.
-let continuousAllowedAnswerModes = ["choice", "type", "handwrite"];
+// there's always an answerable mode even if keyboard is unchecked.
+let continuousAllowedAnswerModes = ["choice", "type"];
 
 function buildContinuousRoundTypes(config) {
   const types = [];
@@ -448,9 +453,9 @@ function currentPool() {
   return activeWords || eligibleWords();
 }
 
-// A typed/handwritten answer isn't offered when the target is a
-// picture (there's nothing to spell), and only from the methods the
-// kid enabled on the settings screen. Multiple-choice always stays
+// A typed answer isn't offered when the target is a picture
+// (there's nothing to spell), and only from the methods the kid
+// enabled on the settings screen. Multiple-choice always stays
 // available so there's always at least one way to answer.
 function pickAnswerMode(roundType) {
   const allowed =
@@ -463,7 +468,6 @@ function pickAnswerMode(roundType) {
 function hideAllAnswerModes() {
   gameEls.options.classList.add("hidden");
   gameEls.typeAnswer.classList.add("hidden");
-  gameEls.handwriteAnswer.classList.add("hidden");
 }
 
 function resetTypeInput() {
@@ -503,16 +507,12 @@ function renderRound(correctWord, roundType, answerMode) {
       btn.addEventListener("click", () => selectOption(btn, word));
       gameEls.options.appendChild(btn);
     });
-  } else if (answerMode === "type") {
+  } else {
     const lang = answerLanguage(roundType);
     gameEls.typeInput.dir = lang === "he" ? "rtl" : "ltr";
     gameEls.typeInput.placeholder = lang === "he" ? "הקלד בעברית" : "הקלד באנגלית";
     gameEls.typeAnswer.classList.remove("hidden");
     gameEls.typeInput.focus();
-    gameEls.skipBtn.classList.remove("hidden");
-  } else {
-    gameEls.handwriteAnswer.classList.remove("hidden");
-    buildHandwriteCanvas(currentCorrectKey);
     gameEls.skipBtn.classList.remove("hidden");
   }
 }
@@ -618,12 +618,6 @@ function describeMistake(detail) {
     return `כתבת '${detail.typedValue}', אבל התשובה הנכונה היא '${currentCorrectKey}'.`;
   }
 
-  if (typeof detail.recognizedText === "string") {
-    return detail.recognizedText
-      ? `קראתי '${detail.recognizedText}', אבל התשובה הנכונה היא '${currentCorrectKey}'.`
-      : `לא הצלחתי לקרוא את הכתב, התשובה הנכונה היא '${currentCorrectKey}'.`;
-  }
-
   return `לא נכון, התשובה היא '${currentCorrectKey}'`;
 }
 
@@ -655,7 +649,7 @@ function finishRound(isCorrect, detail) {
     currentProfile.totalCorrect += countedCorrect ? 1 : 0;
     currentProfile.totalWrong += countedCorrect ? 0 : 1;
     authEls.userLevelBadge.textContent = `רמה ${currentLevel()}`;
-    recordAnswer(currentUid, countedCorrect);
+    recordAnswer(currentUid, countedCorrect, currentAnswerMode);
   }
 
   if (currentMode === "sprint") {
@@ -671,10 +665,9 @@ function finishRound(isCorrect, detail) {
   }
 }
 
-// Lets a kid opt out of a typed/handwritten round entirely (typing or
-// handwriting recognition can be genuinely frustrating) with no
-// penalty at all — score, streak, level, and sprint progress are all
-// left untouched, it just moves on.
+// Lets a kid opt out of a typed round entirely (typing can be tedious
+// for a young kid) with no penalty at all — score, streak, level, and
+// sprint progress are all left untouched, it just moves on.
 function skipRound() {
   if (locked) return;
   locked = true;
@@ -709,186 +702,6 @@ function checkTypedAnswer() {
   gameEls.typeInput.disabled = true;
 
   finishRound(isCorrect, { typedValue: value });
-}
-
-// One continuous canvas for the whole word (natural handwriting, no
-// separate boxes to write in) — but internally divided into equal
-// letter-width columns. On "check", each *unconfirmed* column is
-// cropped out and OCR'd on its own: a column that reads correctly is
-// tinted green and locked (that ink won't be touched again); a column
-// that doesn't is erased so just that letter can be rewritten in
-// place, without disturbing the rest of the word.
-const PX_PER_LETTER = 50; // CSS pixels per letter column, as displayed
-const CANVAS_DISPLAY_HEIGHT = 140; // CSS pixels, fixed regardless of word length
-const CANVAS_SCALE = 2; // internal resolution multiplier for crisper strokes/OCR
-
-let letterSlots = []; // [{ letter, locked }]
-let checkingHandwrite = false;
-
-function slotPxInternal() {
-  return PX_PER_LETTER * CANVAS_SCALE;
-}
-
-function buildHandwriteCanvas(word) {
-  const canvas = gameEls.handwriteCanvas;
-  const n = word.length;
-
-  canvas.width = n * PX_PER_LETTER * CANVAS_SCALE;
-  canvas.height = CANVAS_DISPLAY_HEIGHT * CANVAS_SCALE;
-  canvas.style.width = `${n * PX_PER_LETTER}px`;
-  canvas.style.height = `${CANVAS_DISPLAY_HEIGHT}px`;
-  canvas.style.backgroundImage = `repeating-linear-gradient(to right, var(--line) 0, var(--line) 1px, transparent 1px, transparent ${PX_PER_LETTER}px)`;
-
-  handwriteCtx.clearRect(0, 0, canvas.width, canvas.height);
-  handwriteCtx.strokeStyle = "#2b2140";
-  handwriteCtx.lineWidth = 10 * CANVAS_SCALE;
-  handwriteCtx.lineCap = "round";
-  handwriteCtx.lineJoin = "round";
-
-  letterSlots = [...word].map((letter) => ({ letter, locked: false, attempts: 0 }));
-  gameEls.handwriteRecognized.textContent = "";
-  gameEls.handwriteCheck.disabled = false;
-}
-
-// A single cropped letter loses everything Tesseract actually relies
-// on to read handwriting — the width/baseline/shape relative to its
-// neighbors — so instead of OCR'ing each column alone, the whole
-// drawn word is read at once (much stronger signal) and then aligned
-// against the target word (classic edit-distance with backtrace) to
-// work out which letters came through; only the ones that didn't are
-// cleared for another attempt.
-const LETTER_LOOKALIKES = {
-  o: "0ce",
-  l: "1i",
-  i: "1l",
-  s: "5",
-  z: "2",
-  g: "9q",
-  q: "9g",
-  b: "6",
-  e: "co",
-  c: "eo",
-  a: "e",
-};
-
-// After this many failed attempts on the same letter, it's accepted
-// as-is rather than leaving a kid stuck forever on one stubborn
-// letter OCR just won't read.
-const MAX_LETTER_ATTEMPTS = 4;
-
-function charsMatchLoose(recognizedChar, targetChar, lang) {
-  if (recognizedChar === targetChar) return true;
-  if (lang === "he") return false;
-  const lookalikes = LETTER_LOOKALIKES[targetChar];
-  return lookalikes ? lookalikes.includes(recognizedChar) : false;
-}
-
-// Aligns the OCR'd text against the target word and returns, for each
-// position in the target, whether some recognized character lined up
-// with it. Handles the recognized text being shorter/longer than the
-// target (extra/missing strokes) the same way spell-checkers do.
-function alignRecognizedToTarget(recognized, target, lang) {
-  const n = recognized.length;
-  const m = target.length;
-  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
-  for (let i = 0; i <= n; i++) dp[i][0] = i;
-  for (let j = 0; j <= m; j++) dp[0][j] = j;
-  for (let i = 1; i <= n; i++) {
-    for (let j = 1; j <= m; j++) {
-      const match = charsMatchLoose(recognized[i - 1], target[j - 1], lang);
-      dp[i][j] = match ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
-  }
-
-  const matched = new Array(m).fill(false);
-  let i = n;
-  let j = m;
-  while (i > 0 && j > 0) {
-    if (charsMatchLoose(recognized[i - 1], target[j - 1], lang) && dp[i][j] === dp[i - 1][j - 1]) {
-      matched[j - 1] = true;
-      i--;
-      j--;
-    } else if (dp[i][j] === dp[i - 1][j - 1] + 1) {
-      i--;
-      j--;
-    } else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
-      i--;
-    } else {
-      j--;
-    }
-  }
-  return matched;
-}
-
-async function checkHandwriteAnswer() {
-  if (locked || checkingHandwrite) return;
-  const pendingIndices = letterSlots.map((s, i) => i).filter((i) => !letterSlots[i].locked);
-  if (pendingIndices.length === 0) return;
-
-  checkingHandwrite = true;
-  gameEls.handwriteCheck.disabled = true;
-  gameEls.handwriteRecognized.textContent = "קורא...";
-
-  const lang = answerLanguage(currentRoundType);
-  const tessLang = lang === "he" ? "heb" : "eng";
-  const scanPattern = lang === "he" ? new RegExp("[\\u0590-\\u05FF]", "g") : /[a-zA-Z0-9]/g;
-  const target = currentCorrectKey.toLowerCase();
-
-  let recognizedText = "";
-  let ocrFailed = false;
-  try {
-    const result = await window.Tesseract.recognize(gameEls.handwriteCanvas, tessLang);
-    recognizedText = (result.data.text || "").toLowerCase();
-  } catch (err) {
-    console.error("Handwriting OCR failed", err);
-    ocrFailed = true;
-  }
-
-  checkingHandwrite = false;
-  gameEls.handwriteCheck.disabled = false;
-
-  const recognizedChars = (recognizedText.match(scanPattern) || []).join("");
-  const matched = ocrFailed ? [] : alignRecognizedToTarget(recognizedChars, target, lang);
-
-  const w = slotPxInternal();
-  const h = gameEls.handwriteCanvas.height;
-
-  for (const i of pendingIndices) {
-    const slot = letterSlots[i];
-    const x = i * w;
-
-    if (matched[i]) {
-      slot.locked = true;
-      handwriteCtx.fillStyle = "rgba(23, 163, 152, 0.22)";
-      handwriteCtx.fillRect(x, 0, w, h);
-    } else {
-      slot.attempts += 1;
-      if (slot.attempts >= MAX_LETTER_ATTEMPTS) {
-        // Stop making a kid retry a letter OCR just won't read.
-        slot.locked = true;
-        slot.autoAccepted = true;
-        handwriteCtx.fillStyle = "rgba(255, 193, 69, 0.35)";
-        handwriteCtx.fillRect(x, 0, w, h);
-      } else {
-        handwriteCtx.clearRect(x, 0, w, h);
-      }
-    }
-  }
-
-  const remaining = letterSlots.filter((s) => !s.locked).length;
-  const autoAcceptedCount = letterSlots.filter((s) => s.autoAccepted).length;
-  if (remaining === 0) {
-    gameEls.handwriteRecognized.textContent =
-      autoAcceptedCount > 0 ? `${autoAcceptedCount} אותיות התקבלו אחרי כמה ניסיונות` : "";
-    locked = true;
-    finishRound(true, {});
-  } else {
-    gameEls.handwriteRecognized.textContent = ocrFailed
-      ? "שגיאה בקריאה, נסה שוב"
-      : recognizedChars.length === 0
-        ? "לא זוהה כתב, נסה לכתוב גדול וברור יותר"
-        : `כתוב מחדש את ${remaining} האותיות הריקות`;
-  }
 }
 
 function showCelebration() {
@@ -953,11 +766,7 @@ gameEls.continuousConfigStartBtn.addEventListener("click", () => {
   activeWords = null;
   activeRoundTypes = types;
   forcedAnswerMode = null;
-  continuousAllowedAnswerModes = [
-    "choice",
-    ...(gameEls.cfgKeyboard.checked ? ["type"] : []),
-    ...(gameEls.cfgFinger.checked ? ["handwrite"] : []),
-  ];
+  continuousAllowedAnswerModes = ["choice", ...(gameEls.cfgKeyboard.checked ? ["type"] : [])];
 
   showScreen("game");
   startSession();
@@ -1023,55 +832,6 @@ gameEls.typeInput.addEventListener("keydown", (e) => {
 });
 
 gameEls.typeCheck.addEventListener("click", checkTypedAnswer);
-
-// ---- Handwriting canvas (finger or mouse) ----
-
-const handwriteCtx = gameEls.handwriteCanvas.getContext("2d");
-
-let drawing = false;
-let lastPoint = null;
-
-function canvasPoint(e) {
-  const rect = gameEls.handwriteCanvas.getBoundingClientRect();
-  const scaleX = gameEls.handwriteCanvas.width / rect.width;
-  const scaleY = gameEls.handwriteCanvas.height / rect.height;
-  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
-}
-
-gameEls.handwriteCanvas.addEventListener("pointerdown", (e) => {
-  drawing = true;
-  lastPoint = canvasPoint(e);
-  gameEls.handwriteCanvas.setPointerCapture(e.pointerId);
-});
-
-gameEls.handwriteCanvas.addEventListener("pointermove", (e) => {
-  if (!drawing) return;
-  const p = canvasPoint(e);
-  handwriteCtx.beginPath();
-  handwriteCtx.moveTo(lastPoint.x, lastPoint.y);
-  handwriteCtx.lineTo(p.x, p.y);
-  handwriteCtx.stroke();
-  lastPoint = p;
-});
-
-function stopDrawing() {
-  drawing = false;
-  lastPoint = null;
-}
-gameEls.handwriteCanvas.addEventListener("pointerup", stopDrawing);
-gameEls.handwriteCanvas.addEventListener("pointercancel", stopDrawing);
-gameEls.handwriteCanvas.addEventListener("pointerleave", stopDrawing);
-
-gameEls.handwriteClear.addEventListener("click", () => {
-  const w = slotPxInternal();
-  const h = gameEls.handwriteCanvas.height;
-  letterSlots.forEach((slot, i) => {
-    if (!slot.locked) handwriteCtx.clearRect(i * w, 0, w, h);
-  });
-  gameEls.handwriteRecognized.textContent = "";
-});
-
-gameEls.handwriteCheck.addEventListener("click", checkHandwriteAnswer);
 
 // ---- Photo training: read a page, quiz only on its words ----
 
@@ -1146,17 +906,50 @@ async function resolvePhotoWords(file) {
 
   pendingPhotoWords = resolved;
   setPhotoStatus("");
-  showScreen("photoConfig");
+  renderPhotoWordsChecklist();
+  showScreen("photoWords");
 }
+
+function renderPhotoWordsChecklist() {
+  gameEls.photoWordsList.innerHTML = "";
+  gameEls.photoWordsError.textContent = "";
+  pendingPhotoWords.forEach((word, i) => {
+    const label = document.createElement("label");
+    label.className = "photo-word-choice";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = true;
+    checkbox.dataset.index = String(i);
+    const en = document.createElement("span");
+    en.className = "photo-word-en";
+    en.textContent = word.en;
+    const he = document.createElement("span");
+    he.className = "photo-word-he";
+    he.textContent = word.he;
+    label.append(checkbox, en, he);
+    gameEls.photoWordsList.appendChild(label);
+  });
+}
+
+gameEls.photoWordsContinueBtn.addEventListener("click", () => {
+  const checked = [...gameEls.photoWordsList.querySelectorAll('input[type="checkbox"]:checked')].map(
+    (cb) => pendingPhotoWords[Number(cb.dataset.index)]
+  );
+  if (checked.length < 3) {
+    gameEls.photoWordsError.textContent = "בחר לפחות 3 מילים";
+    return;
+  }
+  pendingPhotoWords = checked;
+  showScreen("photoConfig");
+});
 
 gameEls.photoConfigStartBtn.addEventListener("click", () => {
   const direction = document.querySelector('input[name="photoDirection"]:checked').value;
-  const answerModeChoice = document.querySelector('input[name="photoAnswerMode"]:checked').value;
 
   activeWords = pendingPhotoWords;
   activeRoundTypes =
     direction === "he-en" ? [{ prompt: "he", options: "en" }] : [{ prompt: "en", options: "he" }];
-  forcedAnswerMode = answerModeChoice;
+  forcedAnswerMode = "type";
   currentMode = "photo";
 
   showScreen("game");

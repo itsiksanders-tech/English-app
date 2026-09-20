@@ -147,6 +147,17 @@ function renderUserRow(row) {
       statsEl.className = "day-stats";
       statsEl.textContent = `${d.quizzes || 0} חידונים · ${d.correct || 0} נכונות`;
       chip.append(dateEl, statsEl);
+
+      const byMode = d.byMode || {};
+      const choiceCorrect = byMode.choice?.correct || 0;
+      const typeCorrect = byMode.type?.correct || 0;
+      if (choiceCorrect || typeCorrect) {
+        const modesEl = document.createElement("span");
+        modesEl.className = "day-modes";
+        modesEl.textContent = `בחירה: ${choiceCorrect} · הקלדה: ${typeCorrect}`;
+        chip.appendChild(modesEl);
+      }
+
       days.appendChild(chip);
     });
   }

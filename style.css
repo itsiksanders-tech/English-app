@@ -582,40 +582,6 @@ body {
   box-shadow: 0 3px 0 var(--coral-deep);
 }
 
-.handwrite-answer {
-  width: 100%;
-  max-width: 360px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.handwrite-canvas-wrap {
-  width: 100%;
-  max-width: 360px;
-  overflow-x: auto;
-  display: flex;
-  justify-content: center;
-}
-
-.handwrite-canvas {
-  background-color: var(--card);
-  border: 3px dashed var(--line);
-  border-radius: 14px;
-  display: block;
-  touch-action: none;
-  flex-shrink: 0;
-}
-
-.handwrite-recognized {
-  font-family: 'Rubik', sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink-soft);
-  min-height: 18px;
-}
-
 .dash-title {
   font-family: 'Baloo 2', ui-rounded, sans-serif;
   font-size: 28px;
@@ -730,6 +696,46 @@ body {
   width: 18px;
   height: 18px;
   accent-color: var(--teal);
+}
+
+.photo-words-list {
+  width: 100%;
+  max-width: 360px;
+  max-height: 45vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.photo-word-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Rubik', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 14px;
+}
+
+.photo-word-choice input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--teal);
+  flex-shrink: 0;
+}
+
+.photo-word-en {
+  direction: ltr;
+  font-weight: 800;
+}
+
+.photo-word-he {
+  color: var(--ink-soft);
 }
 
 /* Hint */

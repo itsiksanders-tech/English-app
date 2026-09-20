@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Rubik:wght@500;600;700;900&display=swap">
-<link rel="stylesheet" href="style.css?v=20260919c">
+<link rel="stylesheet" href="style.css?v=20260920a">
 </head>
 <body>
 <div class="app">
@@ -83,7 +83,7 @@
       <span class="mode-btn-emoji">🏃</span>
       <span class="mode-btn-text">
         <span class="mode-btn-title">ספרינט 10 מילים</span>
-        <span class="mode-btn-desc">זיהוי, אז הקלדה, אז כתיבה - עד שמושלם</span>
+        <span class="mode-btn-desc">זיהוי, אז הקלדה - עד שמושלם</span>
       </span>
     </button>
     <button id="modePhotoBtn" type="button" class="mode-btn">
@@ -93,7 +93,7 @@
         <span class="mode-btn-desc">צלם עמוד ותתרגל רק את המילים שבו</span>
       </span>
     </button>
-    <input id="photoInput" type="file" accept="image/*" capture="environment" class="hidden">
+    <input id="photoInput" type="file" accept="image/*" class="hidden">
     <div id="photoStatus" class="photo-status hidden"></div>
   </main>
 
@@ -111,11 +111,18 @@
       <span class="config-label">איך לענות</span>
       <div class="config-options">
         <label class="config-choice"><input type="checkbox" id="cfgKeyboard" checked> הקלדה במקלדת</label>
-        <label class="config-choice"><input type="checkbox" id="cfgFinger" checked> כתיבה עם האצבע</label>
       </div>
     </div>
     <div id="continuousConfigError" class="auth-error"></div>
     <button id="continuousConfigStartBtn" type="button" class="auth-submit">התחל</button>
+  </div>
+
+  <div id="photoWordsScreen" class="photo-config hidden">
+    <h2 class="dash-title">אילו מילים לתרגל?</h2>
+    <p class="auth-hint">בטל סימון למילים שלא מתאימות</p>
+    <div id="photoWordsList" class="photo-words-list"></div>
+    <div id="photoWordsError" class="auth-error"></div>
+    <button id="photoWordsContinueBtn" type="button" class="auth-submit">המשך</button>
   </div>
 
   <div id="photoConfigScreen" class="photo-config hidden">
@@ -125,13 +132,6 @@
       <div class="config-options">
         <label class="config-choice"><input type="radio" name="photoDirection" value="he-en" checked> עברית ← אנגלית</label>
         <label class="config-choice"><input type="radio" name="photoDirection" value="en-he"> אנגלית ← עברית</label>
-      </div>
-    </div>
-    <div class="config-group">
-      <span class="config-label">איך לענות</span>
-      <div class="config-options">
-        <label class="config-choice"><input type="radio" name="photoAnswerMode" value="type" checked> הקלדה במקלדת</label>
-        <label class="config-choice"><input type="radio" name="photoAnswerMode" value="handwrite"> כתיבה עם האצבע</label>
       </div>
     </div>
     <button id="photoConfigStartBtn" type="button" class="auth-submit">התחל</button>
@@ -157,17 +157,6 @@
       </div>
     </div>
 
-    <div id="handwriteAnswer" class="handwrite-answer hidden">
-      <div class="handwrite-canvas-wrap">
-        <canvas id="handwriteCanvas" class="handwrite-canvas"></canvas>
-      </div>
-      <div id="handwriteRecognized" class="handwrite-recognized"></div>
-      <div class="type-actions">
-        <button id="handwriteClear" type="button" class="type-action-btn">נקה</button>
-        <button id="handwriteCheck" type="button" class="type-check-btn">בדוק</button>
-      </div>
-    </div>
-
     <button id="skipBtn" type="button" class="skip-btn hidden">דלג על השאלה ⏭</button>
 
     <div id="feedback" class="feedback" aria-live="polite"></div>
@@ -185,8 +174,8 @@
 
 </div>
 
-<script src="words.js?v=20260919c"></script>
+<script src="words.js?v=20260920a"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
-<script type="module" src="app.js?v=20260919c"></script>
+<script type="module" src="app.js?v=20260920a"></script>
 </body>
 </html>
