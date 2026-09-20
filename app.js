@@ -370,6 +370,7 @@ const gameEls = {
   myStats: document.getElementById("myStats"),
   myStatsDays: document.getElementById("myStatsDays"),
   photoConfigScreen: document.getElementById("photoConfigScreen"),
+  cfgPhotoKeyboard: document.getElementById("cfgPhotoKeyboard"),
   photoConfigStartBtn: document.getElementById("photoConfigStartBtn"),
   photoWordsScreen: document.getElementById("photoWordsScreen"),
   photoWordsList: document.getElementById("photoWordsList"),
@@ -1200,7 +1201,8 @@ gameEls.photoConfigStartBtn.addEventListener("click", () => {
   activeWords = pendingPhotoWords;
   activeRoundTypes =
     direction === "he-en" ? [{ prompt: "he", options: "en" }] : [{ prompt: "en", options: "he" }];
-  forcedAnswerMode = "type";
+  continuousAllowedAnswerModes = ["choice", ...(gameEls.cfgPhotoKeyboard.checked ? ["typeChoice", "type"] : [])];
+  forcedAnswerMode = null;
   currentMode = "photo";
 
   showScreen("game");
