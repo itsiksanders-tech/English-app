@@ -15,6 +15,11 @@ import {
   updateDoc,
   increment,
   serverTimestamp,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  limit,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -281,6 +286,54 @@ function enterGame(profile) {
   authEls.userGreeting.textContent = `היי ${profile.name}!`;
   authEls.userLevelBadge.textContent = `רמה ${currentLevel()}`;
   showScreen("mode");
+  renderMyStats();
+}
+
+function renderDayChip(day) {
+  const chip = document.createElement("div");
+  chip.className = "day-chip";
+  const dateEl = document.createElement("span");
+  dateEl.className = "day-date";
+  dateEl.textContent = day.date;
+  const statsEl = document.createElement("span");
+  statsEl.className = "day-stats";
+  statsEl.textContent = `${day.quizzes || 0} חידונים · ${day.correct || 0} נכונות`;
+  chip.append(dateEl, statsEl);
+
+  const byMode = day.byMode || {};
+  const choiceCorrect = byMode.choice?.correct || 0;
+  const typeChoiceCorrect = byMode.typeChoice?.correct || 0;
+  const typeCorrect = byMode.type?.correct || 0;
+  if (choiceCorrect || typeChoiceCorrect || typeCorrect) {
+    const modesEl = document.createElement("span");
+    modesEl.className = "day-modes";
+    modesEl.textContent = `בחירה: ${choiceCorrect} · בחירה+הקלדה: ${typeChoiceCorrect} · הקלדה: ${typeCorrect}`;
+    chip.appendChild(modesEl);
+  }
+  return chip;
+}
+
+async function renderMyStats() {
+  if (!currentUid) return;
+  try {
+    const dailySnap = await getDocs(
+      query(collection(db, "users", currentUid, "dailyStats"), orderBy("__name__", "desc"), limit(7))
+    );
+    gameEls.myStatsDays.innerHTML = "";
+    if (dailySnap.docs.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "no-data";
+      empty.textContent = "אין נתונים עדיין, שחקו כדי להתחיל!";
+      gameEls.myStatsDays.appendChild(empty);
+    } else {
+      dailySnap.docs.forEach((d) => {
+        gameEls.myStatsDays.appendChild(renderDayChip({ date: d.id, ...d.data() }));
+      });
+    }
+    gameEls.myStats.classList.remove("hidden");
+  } catch (err) {
+    console.error("Failed to load daily stats", err);
+  }
 }
 
 // ---- Screen navigation ----
@@ -314,6 +367,8 @@ const gameEls = {
   modePhotoBtn: document.getElementById("modePhotoBtn"),
   photoInput: document.getElementById("photoInput"),
   photoStatus: document.getElementById("photoStatus"),
+  myStats: document.getElementById("myStats"),
+  myStatsDays: document.getElementById("myStatsDays"),
   photoConfigScreen: document.getElementById("photoConfigScreen"),
   photoConfigStartBtn: document.getElementById("photoConfigStartBtn"),
   photoWordsScreen: document.getElementById("photoWordsScreen"),
@@ -761,6 +816,7 @@ function goToModeSelect() {
   activeRoundTypes = null;
   forcedAnswerMode = null;
   showScreen("mode");
+  renderMyStats();
 }
 
 gameEls.switchModeBtn.addEventListener("click", goToModeSelect);
@@ -896,6 +952,93 @@ function setPhotoStatus(text, isError) {
   gameEls.photoStatus.classList.toggle("error", Boolean(isError));
 }
 
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      resolve(img);
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// Otsu's method: picks the gray-level threshold that best splits the
+// image into two classes (ink vs. paper) by maximizing the variance
+// between them. When several thresholds tie for the max (a perfectly
+// flat run with no pixels in between, e.g. clean printed text), the
+// midpoint of that run is used rather than its first or last edge.
+function otsuThreshold(gray) {
+  const histogram = new Array(256).fill(0);
+  for (let i = 0; i < gray.length; i++) histogram[gray[i]]++;
+  const total = gray.length;
+  let sum = 0;
+  for (let i = 0; i < 256; i++) sum += i * histogram[i];
+
+  let sumB = 0;
+  let wB = 0;
+  let maxBetween = -1;
+  let firstMax = 127;
+  let lastMax = 127;
+  for (let i = 0; i < 256; i++) {
+    wB += histogram[i];
+    if (wB === 0) continue;
+    const wF = total - wB;
+    if (wF === 0) break;
+    sumB += i * histogram[i];
+    const meanB = sumB / wB;
+    const meanF = (sum - sumB) / wF;
+    const between = wB * wF * (meanB - meanF) * (meanB - meanF);
+    if (between > maxBetween) {
+      maxBetween = between;
+      firstMax = i;
+      lastMax = i;
+    } else if (between === maxBetween) {
+      lastMax = i;
+    }
+  }
+  return Math.round((firstMax + lastMax) / 2);
+}
+
+// Photographed pages are rarely OCR-friendly straight out of the
+// camera: uneven lighting, shadows, and low contrast all confuse
+// Tesseract. Upscaling small photos and converting to a clean
+// black-on-white image (grayscale + Otsu binarization) mirrors the
+// preprocessing a real document scanner would do, without touching
+// Tesseract's own recognition settings.
+async function preprocessPhotoForOcr(file) {
+  let img;
+  try {
+    img = await loadImageFromFile(file);
+  } catch (err) {
+    return file;
+  }
+
+  const MIN_WIDTH = 1400;
+  const scale = img.width < MIN_WIDTH ? MIN_WIDTH / img.width : 1;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  const gray = new Uint8ClampedArray(data.length / 4);
+  for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+    gray[j] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  }
+
+  const threshold = otsuThreshold(gray);
+  for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+    const v = gray[j] >= threshold ? 255 : 0;
+    data[i] = data[i + 1] = data[i + 2] = v;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
 // Free, no-signup translation endpoint (MyMemory) — good enough for
 // single common words, no billing/account setup required. Quality can
 // be uneven for uncommon words since it's a community-run service.
@@ -918,7 +1061,8 @@ async function resolvePhotoWords(file) {
   setPhotoStatus("קורא את התמונה...");
   let text = "";
   try {
-    const result = await window.Tesseract.recognize(file, "eng");
+    const ocrInput = await preprocessPhotoForOcr(file);
+    const result = await window.Tesseract.recognize(ocrInput, "eng");
     text = result.data.text || "";
   } catch (err) {
     console.error("Photo OCR failed", err);

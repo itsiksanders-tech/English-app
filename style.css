@@ -701,6 +701,71 @@ body {
   color: var(--ink-soft);
 }
 
+.my-stats {
+  width: 100%;
+  max-width: 360px;
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 2px solid var(--line);
+}
+
+.my-stats-title {
+  font-family: 'Baloo 2', ui-rounded, sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: center;
+  margin: 0 0 10px;
+}
+
+.user-report-days {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.day-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--paper);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 10px;
+  min-width: 92px;
+}
+
+.day-date {
+  font-family: 'Rubik', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.day-stats {
+  font-family: 'Rubik', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.day-modes {
+  font-family: 'Rubik', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.no-data {
+  font-family: 'Rubik', sans-serif;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
 /* Photo config */
 
 .photo-config {
