@@ -28,22 +28,70 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
-// Word pool grows with level: level N unlocks words of difficulty <= N.
-const LEVEL_THRESHOLDS = [0, 12, 30]; // cumulative correct answers needed for level 1, 2, 3
-const MAX_LEVEL = LEVEL_THRESHOLDS.length;
+// ---- Curriculum: age -> tier -> per-word mastery ----
+//
+// Words are grouped into 60 tiers (5 sub-levels per age, ages 3-14).
+// A kid's age picks their starting tier; from there, an "active pool"
+// of words is tracked personally (persisted on their profile). Each
+// pool word climbs the same 3 mastery stages sprint mode uses
+// (choice -> typeChoice -> type); once it clears "type" it's
+// mastered and is swapped out for a new word pulled from the NEXT
+// tier. Once most of the pool is made up of next-tier words, the
+// whole tier advances - so the pool gradually and continuously
+// drifts upward instead of jumping in one lump.
+const AGE_MIN = 3;
+const AGE_MAX = 14;
+const SUBLEVELS_PER_AGE = 5;
+const MAX_TIER = (AGE_MAX - AGE_MIN + 1) * SUBLEVELS_PER_AGE; // 60
+const ACTIVE_POOL_SIZE = 10;
+const MASTERY_STAGES = ["choice", "typeChoice", "type"];
 
-function ageBonusFor(age) {
-  if (age >= 10) return 15;
-  if (age >= 7) return 6;
-  return 0;
+function startingTierForAge(age) {
+  const clamped = Math.min(Math.max(Math.round(age) || AGE_MIN, AGE_MIN), AGE_MAX);
+  return (clamped - AGE_MIN) * SUBLEVELS_PER_AGE + 1;
 }
 
-function levelForCorrect(effectiveCorrect) {
-  let level = 1;
-  for (let i = 1; i < LEVEL_THRESHOLDS.length; i++) {
-    if (effectiveCorrect >= LEVEL_THRESHOLDS[i]) level = i + 1;
+function ageAndSubLevelForTier(tier) {
+  const idx = Math.min(Math.max(tier, 1), MAX_TIER) - 1;
+  return { age: AGE_MIN + Math.floor(idx / SUBLEVELS_PER_AGE), subLevel: (idx % SUBLEVELS_PER_AGE) + 1 };
+}
+
+function wordsInTier(tier) {
+  return window.WORDS.filter((w) => w.tier === tier);
+}
+
+function wordTierOf(en) {
+  return window.WORDS.find((w) => w.en === en)?.tier;
+}
+
+function pickUnseenFrom(list, seenWords) {
+  const candidates = list.filter((w) => !seenWords.includes(w.en));
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+// Tries the preferred tier first, then falls back progressively wider
+// so a sparsely-populated tier never breaks the pool - it just pulls
+// from further afield instead.
+function pickCurriculumWord(progress, preferredTier) {
+  return (
+    pickUnseenFrom(wordsInTier(preferredTier), progress.seenWords) ||
+    pickUnseenFrom(wordsInTier(progress.currentTier), progress.seenWords) ||
+    pickUnseenFrom(window.WORDS.filter((w) => w.tier <= progress.currentTier), progress.seenWords) ||
+    pickUnseenFrom(window.WORDS, progress.seenWords)
+  );
+}
+
+function initialCurriculumProgress(age) {
+  const tier = startingTierForAge(age);
+  const progress = { currentTier: tier, activePool: [], seenWords: [] };
+  for (let i = 0; i < ACTIVE_POOL_SIZE; i++) {
+    const word = pickCurriculumWord(progress, tier);
+    if (!word) break;
+    progress.activePool.push({ en: word.en, stage: 0 });
+    progress.seenWords.push(word.en);
   }
-  return Math.min(level, MAX_LEVEL);
+  return progress;
 }
 
 function usernameKey(name) {
@@ -80,9 +128,10 @@ async function signUp(name, age, password) {
   const profile = {
     name: name.trim(),
     age,
-    ageBonus: ageBonusFor(age),
     totalCorrect: 0,
     totalWrong: 0,
+    masteredWords: [],
+    ...initialCurriculumProgress(age),
   };
   await setDoc(doc(db, "users", uid), { ...profile, createdAt: serverTimestamp() });
 
@@ -104,10 +153,11 @@ async function signUpGuest(age) {
   const profile = {
     name: `אורח ${Math.floor(1000 + Math.random() * 9000)}`,
     age,
-    ageBonus: ageBonusFor(age),
     totalCorrect: 0,
     totalWrong: 0,
+    masteredWords: [],
     guest: true,
+    ...initialCurriculumProgress(age),
   };
   await setDoc(doc(db, "users", uid), { ...profile, createdAt: serverTimestamp() });
 
@@ -123,9 +173,22 @@ async function logIn(name, password) {
   await signInWithEmailAndPassword(auth, usernameSnap.data().email, password);
 }
 
+// Older accounts (from before the age/tier curriculum existed) have
+// no currentTier/activePool yet - back-fill them once, on first load
+// after this update, instead of breaking on missing fields forever.
 async function loadProfile(uid) {
   const snap = await getDoc(doc(db, "users", uid));
-  return snap.exists() ? snap.data() : null;
+  if (!snap.exists()) return null;
+  const profile = snap.data();
+  if (!profile.currentTier || !profile.activePool) {
+    const progress = initialCurriculumProgress(profile.age);
+    Object.assign(profile, progress);
+    if (!profile.masteredWords) profile.masteredWords = [];
+    await setDoc(doc(db, "users", uid), progress, { merge: true }).catch((err) =>
+      console.error("Failed to migrate profile to curriculum tiers", err)
+    );
+  }
+  return profile;
 }
 
 function todayKey() {
@@ -327,16 +390,17 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-function currentLevel() {
-  if (!currentProfile) return 1;
-  return levelForCorrect(currentProfile.totalCorrect + currentProfile.ageBonus);
+function levelBadgeText() {
+  if (!currentProfile) return "";
+  const { age, subLevel } = ageAndSubLevelForTier(currentProfile.currentTier);
+  return `גיל ${age} · שלב ${subLevel}`;
 }
 
 function enterGame(profile) {
   authEls.userBar.classList.remove("hidden");
   authEls.gameStats.classList.remove("hidden");
   authEls.userGreeting.textContent = `היי ${profile.name}!`;
-  authEls.userLevelBadge.textContent = `רמה ${currentLevel()}`;
+  authEls.userLevelBadge.textContent = levelBadgeText();
   showScreen("mode");
   renderMyStats();
 }
@@ -441,7 +505,6 @@ const gameEls = {
   cfgEnHe: document.getElementById("cfgEnHe"),
   cfgHeEn: document.getElementById("cfgHeEn"),
   cfgPictures: document.getElementById("cfgPictures"),
-  cfgKeyboard: document.getElementById("cfgKeyboard"),
   continuousConfigError: document.getElementById("continuousConfigError"),
   continuousConfigStartBtn: document.getElementById("continuousConfigStartBtn"),
 };
@@ -479,7 +542,7 @@ const ROUND_TYPES = [
 ];
 
 const SPRINT_WORD_COUNT = 10;
-const SPRINT_STAGES = ["choice", "typeChoice", "type"];
+const SPRINT_STAGES = MASTERY_STAGES; // same 3-stage progression the curriculum pool uses
 
 let currentMode = "continuous"; // "continuous" | "sprint" | "photo"
 let score = 0;
@@ -564,8 +627,8 @@ function renderOption(word, kind) {
 }
 
 function eligibleWords() {
-  const level = currentLevel();
-  const pool = window.WORDS.filter((w) => w.difficulty <= level);
+  if (!currentProfile) return window.WORDS;
+  const pool = window.WORDS.filter((w) => w.tier <= currentProfile.currentTier);
   return pool.length >= 3 ? pool : window.WORDS;
 }
 
@@ -573,10 +636,11 @@ function currentPool() {
   return activeWords || eligibleWords();
 }
 
-// A typed answer isn't offered when the target is a picture
-// (there's nothing to spell), and only from the methods the kid
-// enabled on the settings screen. Multiple-choice always stays
-// available so there's always at least one way to answer.
+// Used by photo mode only (continuous mode derives its answer mode
+// from each word's personal curriculum stage instead). A typed
+// answer isn't offered when the target is a picture (there's nothing
+// to spell), and only from the methods enabled on the settings
+// screen. Multiple-choice always stays available.
 function pickAnswerMode(roundType) {
   const allowed =
     roundType.options === "emoji"
@@ -722,6 +786,16 @@ function nextRound() {
     return;
   }
 
+  if (currentMode === "continuous") {
+    const { correctWord, roundType, answerMode } = pickContinuousRound();
+    lastWordEn = correctWord.en;
+    renderRound(correctWord, roundType, answerMode);
+    return;
+  }
+
+  // Photo mode: a fixed word list picked by the user, answered
+  // however the settings screen allows (unrelated to the personal
+  // curriculum pool above).
   const pool = currentPool();
   let correctWord;
   do {
@@ -734,6 +808,38 @@ function nextRound() {
   const answerMode = forcedAnswerMode || pickAnswerMode(roundType);
 
   renderRound(correctWord, roundType, answerMode);
+}
+
+// Continuous mode's word comes from the kid's personal active pool
+// (not a flat random pick), and the answer mode is whatever mastery
+// stage that specific word is currently at - so the same word always
+// shows the same way until it's answered correctly and advances.
+function pickContinuousRound() {
+  const progress = currentProfile;
+  let poolEntry = null;
+  if (progress?.activePool?.length > 0) {
+    poolEntry = progress.activePool[Math.floor(Math.random() * progress.activePool.length)];
+  }
+  let correctWord = poolEntry ? window.WORDS.find((w) => w.en === poolEntry.en) : null;
+  let answerMode = "choice";
+  if (correctWord) {
+    answerMode = MASTERY_STAGES[Math.min(poolEntry.stage, MASTERY_STAGES.length - 1)];
+  } else {
+    // The personal pool is empty (e.g. curriculum content ran out) -
+    // fall back to the broader unlocked pool so play never breaks.
+    const fallbackPool = eligibleWords();
+    correctWord = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+  }
+
+  const candidateTypes = (activeRoundTypes || ROUND_TYPES).filter((rt) => {
+    if ((rt.prompt === "emoji" || rt.options === "emoji") && !correctWord.emoji) return false;
+    if (answerMode !== "choice" && rt.options === "emoji") return false;
+    return true;
+  });
+  const roundType =
+    candidateTypes[Math.floor(Math.random() * candidateTypes.length)] || { prompt: "en", options: "he" };
+
+  return { correctWord, roundType, answerMode };
 }
 
 // ---- Finishing a round: scoring, mistake explanations, hint penalty ----
@@ -791,7 +897,10 @@ function finishRound(isCorrect, detail) {
     const countedCorrect = outcome === "correct";
     currentProfile.totalCorrect += countedCorrect ? 1 : 0;
     currentProfile.totalWrong += countedCorrect ? 0 : 1;
-    authEls.userLevelBadge.textContent = `רמה ${currentLevel()}`;
+    if (currentMode === "continuous" && countedCorrect) {
+      advanceWordProgress(currentCorrectWord.en);
+    }
+    authEls.userLevelBadge.textContent = levelBadgeText();
     recordAnswer(currentUid, countedCorrect, currentAnswerMode);
   }
 
@@ -806,6 +915,55 @@ function finishRound(isCorrect, detail) {
   } else {
     advanceTimer = setTimeout(nextRound, CORRECT_ADVANCE_DELAY);
   }
+}
+
+// Advances one word's personal mastery stage after a correct answer.
+// Clearing the last stage ("type") masters it, pulling in a
+// replacement from the next tier and persisting the whole pool.
+function advanceWordProgress(en) {
+  const progress = currentProfile;
+  if (!progress?.activePool) return;
+  const entry = progress.activePool.find((e) => e.en === en);
+  if (!entry) return; // came from the eligibleWords() fallback, not the pool itself
+
+  entry.stage += 1;
+  if (entry.stage >= MASTERY_STAGES.length) {
+    masterCurriculumWord(en);
+  }
+  persistCurriculumProgress();
+}
+
+function masterCurriculumWord(en) {
+  const progress = currentProfile;
+  progress.activePool = progress.activePool.filter((e) => e.en !== en);
+  progress.masteredWords = [...(progress.masteredWords || []), en];
+
+  const nextTier = progress.currentTier + 1;
+  const replacement = pickCurriculumWord(progress, nextTier);
+  if (replacement) {
+    progress.activePool.push({ en: replacement.en, stage: 0 });
+    progress.seenWords = [...progress.seenWords, replacement.en];
+  }
+
+  // Once most of the pool has drifted into next-tier words, the
+  // whole tier advances - the pool keeps whatever it already has
+  // rather than resetting, so the climb stays continuous.
+  if (progress.currentTier < MAX_TIER && progress.activePool.length > 0) {
+    const nextTierCount = progress.activePool.filter((e) => wordTierOf(e.en) === nextTier).length;
+    if (nextTierCount > progress.activePool.length / 2) {
+      progress.currentTier = nextTier;
+    }
+  }
+}
+
+function persistCurriculumProgress() {
+  if (!currentUid || !currentProfile) return;
+  updateDoc(doc(db, "users", currentUid), {
+    currentTier: currentProfile.currentTier,
+    activePool: currentProfile.activePool,
+    seenWords: currentProfile.seenWords,
+    masteredWords: currentProfile.masteredWords,
+  }).catch((err) => console.error("Failed to sync curriculum progress", err));
 }
 
 // Lets a kid opt out of a typed round entirely (typing can be tedious
@@ -910,7 +1068,6 @@ gameEls.continuousConfigStartBtn.addEventListener("click", () => {
   activeWords = null;
   activeRoundTypes = types;
   forcedAnswerMode = null;
-  continuousAllowedAnswerModes = ["choice", ...(gameEls.cfgKeyboard.checked ? ["typeChoice", "type"] : [])];
 
   showScreen("game");
   startSession();
@@ -1160,7 +1317,7 @@ async function resolvePhotoWords(file) {
       continue;
     }
     const he = await translateWord(word);
-    if (he) resolved.push({ en: word, he, emoji: null, difficulty: null });
+    if (he) resolved.push({ en: word, he, emoji: null });
     // A small pause between real network calls avoids tripping the
     // free translation API's rate limit, which was silently dropping
     // most words past the first handful.
@@ -1241,7 +1398,6 @@ gameEls.photoWordsContinueBtn.addEventListener("click", () => {
       en: row.querySelector(".photo-word-en-input").value.trim().toLowerCase(),
       he: row.querySelector(".photo-word-he-input").value.trim(),
       emoji: null,
-      difficulty: null,
     }))
     .filter((w) => w.en && w.he);
 
