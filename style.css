@@ -578,7 +578,13 @@ body {
 
 .tap-keyboard {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.tap-key-row {
+  display: flex;
   justify-content: center;
   gap: 6px;
 }
@@ -598,6 +604,11 @@ body {
 
 .tap-key:active {
   background: var(--paper);
+}
+
+.tap-key-space {
+  width: 180px;
+  font-size: 14px;
 }
 
 .type-actions {

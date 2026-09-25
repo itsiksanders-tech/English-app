@@ -1125,15 +1125,23 @@ gameEls.hintBtn.addEventListener("click", useHint);
 
 // ---- Typed answer (on-screen keyboard only, device keyboard suppressed) ----
 
+// Hebrew rows follow the standard Israeli keyboard mapping (each
+// letter sits in the same physical position it has on a real
+// keyboard - e.g. the top row is qwertyuiop's positions, printed
+// with the Hebrew letters those keys actually produce). That's why
+// the rows stay left-to-right even for Hebrew: they mirror key
+// positions, not reading direction.
 const KEYBOARD_LAYOUTS = {
   en: ["qwertyuiop", "asdfghjkl", "zxcvbnm"],
-  he: ["אבגדהוז", "חטיכךלמ", "םנןסעפף", "צץקרשת"],
+  he: ["קראטוןםפ", "שדגכעיחלךף", "זסבהנמצתץ"],
 };
 
 function buildTapKeyboard(lang) {
   gameEls.tapKeyboard.innerHTML = "";
-  gameEls.tapKeyboard.dir = lang === "he" ? "rtl" : "ltr";
+  gameEls.tapKeyboard.dir = "ltr";
   KEYBOARD_LAYOUTS[lang].forEach((row) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "tap-key-row";
     [...row].forEach((letter) => {
       const key = document.createElement("button");
       key.type = "button";
@@ -1142,9 +1150,19 @@ function buildTapKeyboard(lang) {
       key.addEventListener("click", () => {
         gameEls.typeInput.value += letter;
       });
-      gameEls.tapKeyboard.appendChild(key);
+      rowEl.appendChild(key);
     });
+    gameEls.tapKeyboard.appendChild(rowEl);
   });
+
+  const spaceKey = document.createElement("button");
+  spaceKey.type = "button";
+  spaceKey.className = "tap-key tap-key-space";
+  spaceKey.textContent = "רווח";
+  spaceKey.addEventListener("click", () => {
+    gameEls.typeInput.value += " ";
+  });
+  gameEls.tapKeyboard.appendChild(spaceKey);
 }
 
 gameEls.typeBackspace.addEventListener("click", () => {
