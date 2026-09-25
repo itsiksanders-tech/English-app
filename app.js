@@ -93,17 +93,18 @@ async function signUp(name, age, password) {
 
 // A quick-play guest: no name, no password, no lookup-by-login
 // later (an anonymous Firebase Auth user, not tied to any username
-// mapping, with an auto-generated display name). Meant for a one-off
-// session, not a returning player - progress lives only as long as
-// this device stays signed into that anonymous account.
-async function signUpGuest() {
+// mapping, with an auto-generated display name) - just the age, so
+// the level curve still starts in the right place. Meant for a
+// one-off session, not a returning player - progress lives only as
+// long as this device stays signed into that anonymous account.
+async function signUpGuest(age) {
   const credential = await signInAnonymously(auth);
   const uid = credential.user.uid;
 
   const profile = {
     name: `אורח ${Math.floor(1000 + Math.random() * 9000)}`,
-    age: null,
-    ageBonus: 0,
+    age,
+    ageBonus: ageBonusFor(age),
     totalCorrect: 0,
     totalWrong: 0,
     guest: true,
@@ -178,6 +179,7 @@ const authEls = {
   signupAge: document.getElementById("signupAge"),
   signupPassword: document.getElementById("signupPassword"),
   signupConfirm: document.getElementById("signupConfirm"),
+  guestAge: document.getElementById("guestAge"),
   error: document.getElementById("authError"),
   loading: document.getElementById("authLoading"),
   userBar: document.getElementById("userBar"),
@@ -261,10 +263,12 @@ authEls.guestForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   setAuthError("");
 
+  const age = Number(authEls.guestAge.value);
+
   signingUp = true;
   setAuthLoading(true);
   try {
-    await signUpGuest();
+    await signUpGuest(age);
   } catch (err) {
     console.error("Guest sign-in failed", err);
     setAuthError(`שגיאה (${err.code || "?"}): ${err.message || err}`);

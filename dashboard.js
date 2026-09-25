@@ -127,7 +127,7 @@ function renderUserRow(row) {
   nameEl.textContent = row.name;
   const metaEl = document.createElement("span");
   metaEl.className = "user-report-meta";
-  const ageText = row.guest ? "אקראי" : `גיל ${row.age}`;
+  const ageText = row.guest ? `אקראי · גיל ${row.age}` : `גיל ${row.age}`;
   metaEl.textContent = `${ageText} · סה"כ ${row.totalCorrect} תשובות נכונות`;
   header.append(nameEl, metaEl);
   card.appendChild(header);
