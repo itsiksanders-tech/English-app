@@ -266,7 +266,8 @@ authEls.guestForm.addEventListener("submit", async (e) => {
   try {
     await signUpGuest();
   } catch (err) {
-    setAuthError("משהו השתבש, נסה שוב");
+    console.error("Guest sign-in failed", err);
+    setAuthError(`שגיאה (${err.code || "?"}): ${err.message || err}`);
   } finally {
     setAuthLoading(false);
     signingUp = false;
