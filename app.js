@@ -91,20 +91,17 @@ async function signUp(name, age, password) {
   enterGame(profile);
 }
 
-// A quick-play guest: just a name, no password, no lookup-by-name
-// login later (an anonymous Firebase Auth user, not tied to any
-// username mapping). Meant for a one-off session, not a returning
-// player - progress lives only as long as this device stays signed
-// into that anonymous account.
-async function signUpGuest(name) {
-  const trimmed = name.trim();
-  if (!trimmed) throw new Error("נא להזין שם");
-
+// A quick-play guest: no name, no password, no lookup-by-login
+// later (an anonymous Firebase Auth user, not tied to any username
+// mapping, with an auto-generated display name). Meant for a one-off
+// session, not a returning player - progress lives only as long as
+// this device stays signed into that anonymous account.
+async function signUpGuest() {
   const credential = await signInAnonymously(auth);
   const uid = credential.user.uid;
 
   const profile = {
-    name: trimmed,
+    name: `אורח ${Math.floor(1000 + Math.random() * 9000)}`,
     age: null,
     ageBonus: 0,
     totalCorrect: 0,
@@ -181,7 +178,6 @@ const authEls = {
   signupAge: document.getElementById("signupAge"),
   signupPassword: document.getElementById("signupPassword"),
   signupConfirm: document.getElementById("signupConfirm"),
-  guestName: document.getElementById("guestName"),
   error: document.getElementById("authError"),
   loading: document.getElementById("authLoading"),
   userBar: document.getElementById("userBar"),
@@ -268,9 +264,9 @@ authEls.guestForm.addEventListener("submit", async (e) => {
   signingUp = true;
   setAuthLoading(true);
   try {
-    await signUpGuest(authEls.guestName.value);
+    await signUpGuest();
   } catch (err) {
-    setAuthError(err.message === "נא להזין שם" ? err.message : "משהו השתבש, נסה שוב");
+    setAuthError("משהו השתבש, נסה שוב");
   } finally {
     setAuthLoading(false);
     signingUp = false;
