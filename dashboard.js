@@ -107,6 +107,7 @@ async function renderDashboard() {
     rows.push({
       name: u.name,
       age: u.age,
+      guest: Boolean(u.guest),
       totalCorrect: u.totalCorrect || 0,
       days: dailySnap.docs.map((d) => ({ date: d.id, ...d.data() })),
     });
@@ -126,7 +127,8 @@ function renderUserRow(row) {
   nameEl.textContent = row.name;
   const metaEl = document.createElement("span");
   metaEl.className = "user-report-meta";
-  metaEl.textContent = `גיל ${row.age} · סה"כ ${row.totalCorrect} תשובות נכונות`;
+  const ageText = row.guest ? "אקראי" : `גיל ${row.age}`;
+  metaEl.textContent = `${ageText} · סה"כ ${row.totalCorrect} תשובות נכונות`;
   header.append(nameEl, metaEl);
   card.appendChild(header);
 

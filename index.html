@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Rubik:wght@500;600;700;900&display=swap">
-<link rel="stylesheet" href="style.css?v=20260920k">
+<link rel="stylesheet" href="style.css?v=20260925a">
 </head>
 <body>
 <div class="app">
@@ -36,6 +36,7 @@
       <div class="auth-tabs">
         <button id="tabLogin" class="auth-tab active" type="button">התחברות</button>
         <button id="tabSignup" class="auth-tab" type="button">משתמש חדש</button>
+        <button id="tabGuest" class="auth-tab" type="button">משתמש אקראי</button>
       </div>
 
       <form id="loginForm" class="auth-form">
@@ -63,6 +64,14 @@
         </label>
         <p class="auth-hint">הסיסמה חייבת לפחות 6 תווים</p>
         <button type="submit" class="auth-submit">צור משתמש</button>
+      </form>
+
+      <form id="guestForm" class="auth-form hidden">
+        <label>שם
+          <input id="guestName" type="text" autocomplete="off" required>
+        </label>
+        <p class="auth-hint">שחקן אקראי, ללא סיסמה - ההתקדמות לא נשמרת להתחברות מחדש</p>
+        <button type="submit" class="auth-submit">שחק!</button>
       </form>
 
       <div id="authError" class="auth-error"></div>
@@ -193,8 +202,8 @@
 
 </div>
 
-<script src="words.js?v=20260920k"></script>
+<script src="words.js?v=20260925a"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
-<script type="module" src="app.js?v=20260920k"></script>
+<script type="module" src="app.js?v=20260925a"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@ import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInAnonymously,
   onAuthStateChanged,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -90,6 +91,33 @@ async function signUp(name, age, password) {
   enterGame(profile);
 }
 
+// A quick-play guest: just a name, no password, no lookup-by-name
+// login later (an anonymous Firebase Auth user, not tied to any
+// username mapping). Meant for a one-off session, not a returning
+// player - progress lives only as long as this device stays signed
+// into that anonymous account.
+async function signUpGuest(name) {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("נא להזין שם");
+
+  const credential = await signInAnonymously(auth);
+  const uid = credential.user.uid;
+
+  const profile = {
+    name: trimmed,
+    age: null,
+    ageBonus: 0,
+    totalCorrect: 0,
+    totalWrong: 0,
+    guest: true,
+  };
+  await setDoc(doc(db, "users", uid), { ...profile, createdAt: serverTimestamp() });
+
+  currentUid = uid;
+  currentProfile = profile;
+  enterGame(profile);
+}
+
 async function logIn(name, password) {
   const key = usernameKey(name);
   const usernameSnap = await getDoc(doc(db, "usernames", key));
@@ -143,14 +171,17 @@ const authEls = {
   screen: document.getElementById("authScreen"),
   tabLogin: document.getElementById("tabLogin"),
   tabSignup: document.getElementById("tabSignup"),
+  tabGuest: document.getElementById("tabGuest"),
   loginForm: document.getElementById("loginForm"),
   signupForm: document.getElementById("signupForm"),
+  guestForm: document.getElementById("guestForm"),
   loginName: document.getElementById("loginName"),
   loginPassword: document.getElementById("loginPassword"),
   signupName: document.getElementById("signupName"),
   signupAge: document.getElementById("signupAge"),
   signupPassword: document.getElementById("signupPassword"),
   signupConfirm: document.getElementById("signupConfirm"),
+  guestName: document.getElementById("guestName"),
   error: document.getElementById("authError"),
   loading: document.getElementById("authLoading"),
   userBar: document.getElementById("userBar"),
@@ -168,21 +199,24 @@ function setAuthLoading(isLoading) {
   authEls.loading.classList.toggle("hidden", !isLoading);
 }
 
-authEls.tabLogin.addEventListener("click", () => {
-  authEls.tabLogin.classList.add("active");
-  authEls.tabSignup.classList.remove("active");
-  authEls.loginForm.classList.remove("hidden");
-  authEls.signupForm.classList.add("hidden");
-  setAuthError("");
-});
+const authTabs = [
+  { tab: authEls.tabLogin, form: authEls.loginForm },
+  { tab: authEls.tabSignup, form: authEls.signupForm },
+  { tab: authEls.tabGuest, form: authEls.guestForm },
+];
 
-authEls.tabSignup.addEventListener("click", () => {
-  authEls.tabSignup.classList.add("active");
-  authEls.tabLogin.classList.remove("active");
-  authEls.signupForm.classList.remove("hidden");
-  authEls.loginForm.classList.add("hidden");
+function activateAuthTab(activeTab) {
+  authTabs.forEach(({ tab, form }) => {
+    const isActive = tab === activeTab;
+    tab.classList.toggle("active", isActive);
+    form.classList.toggle("hidden", !isActive);
+  });
   setAuthError("");
-});
+}
+
+authEls.tabLogin.addEventListener("click", () => activateAuthTab(authEls.tabLogin));
+authEls.tabSignup.addEventListener("click", () => activateAuthTab(authEls.tabSignup));
+authEls.tabGuest.addEventListener("click", () => activateAuthTab(authEls.tabGuest));
 
 authEls.loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -221,6 +255,22 @@ authEls.signupForm.addEventListener("submit", async (e) => {
     await signUp(name, age, password);
   } catch (err) {
     setAuthError(signupErrorMessage(err));
+  } finally {
+    setAuthLoading(false);
+    signingUp = false;
+  }
+});
+
+authEls.guestForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  setAuthError("");
+
+  signingUp = true;
+  setAuthLoading(true);
+  try {
+    await signUpGuest(authEls.guestName.value);
+  } catch (err) {
+    setAuthError(err.message === "נא להזין שם" ? err.message : "משהו השתבש, נסה שוב");
   } finally {
     setAuthLoading(false);
     signingUp = false;
