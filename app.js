@@ -586,6 +586,23 @@ let currentAnswerMode = null;
 let currentCorrectKey = null;
 let hintUsedThisRound = false;
 
+// typeInput is a plain div, not a real <input> - a real text input,
+// even set readonly/inputmode="none", was still popping the native
+// keyboard on some Android/Chrome combinations. A div can never
+// trigger an OS keyboard, so typing only ever happens through the
+// on-screen tap keyboard.
+let typedValue = "";
+
+function setTypedValue(value) {
+  typedValue = value;
+  gameEls.typeInput.textContent = value || gameEls.typeInput.dataset.placeholder || "";
+  gameEls.typeInput.classList.toggle("placeholder", !value);
+}
+
+function getTypedValue() {
+  return typedValue;
+}
+
 function optionKey(word, kind) {
   return kind === "he" ? word.he : kind === "en" ? word.en : word.emoji;
 }
@@ -675,15 +692,15 @@ function renderOptionButtons(correctWord, roundType, interactive) {
 function showTypedInput(roundType) {
   const lang = answerLanguage(roundType);
   gameEls.typeInput.dir = lang === "he" ? "rtl" : "ltr";
-  gameEls.typeInput.placeholder = lang === "he" ? "הקלד בעברית" : "הקלד באנגלית";
+  gameEls.typeInput.dataset.placeholder = lang === "he" ? "הקלד בעברית" : "הקלד באנגלית";
+  setTypedValue("");
   gameEls.typeAnswer.classList.remove("hidden");
   buildTapKeyboard(lang);
   gameEls.skipBtn.classList.remove("hidden");
 }
 
 function resetTypeInput() {
-  gameEls.typeInput.value = "";
-  gameEls.typeInput.disabled = false;
+  setTypedValue("");
   gameEls.typeInput.classList.remove("correct", "wrong");
 }
 
@@ -994,13 +1011,12 @@ function selectOption(button, word) {
 
 function checkTypedAnswer() {
   if (locked) return;
-  const value = gameEls.typeInput.value.trim().toLowerCase();
+  const value = getTypedValue().trim().toLowerCase();
   if (!value) return;
   locked = true;
 
   const isCorrect = value === currentCorrectKey.toLowerCase();
   gameEls.typeInput.classList.add(isCorrect ? "correct" : "wrong");
-  gameEls.typeInput.disabled = true;
 
   finishRound(isCorrect, { typedValue: value });
 }
@@ -1148,7 +1164,7 @@ function buildTapKeyboard(lang) {
       key.className = "tap-key";
       key.textContent = letter;
       key.addEventListener("click", () => {
-        gameEls.typeInput.value += letter;
+        setTypedValue(getTypedValue() + letter);
       });
       rowEl.appendChild(key);
     });
@@ -1160,13 +1176,13 @@ function buildTapKeyboard(lang) {
   spaceKey.className = "tap-key tap-key-space";
   spaceKey.textContent = "רווח";
   spaceKey.addEventListener("click", () => {
-    gameEls.typeInput.value += " ";
+    setTypedValue(getTypedValue() + " ");
   });
   gameEls.tapKeyboard.appendChild(spaceKey);
 }
 
 gameEls.typeBackspace.addEventListener("click", () => {
-  gameEls.typeInput.value = gameEls.typeInput.value.slice(0, -1);
+  setTypedValue(getTypedValue().slice(0, -1));
 });
 
 gameEls.typeCheck.addEventListener("click", checkTypedAnswer);

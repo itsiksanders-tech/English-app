@@ -559,11 +559,12 @@ body {
   border: 3px solid var(--line);
   background: var(--card);
   color: var(--ink);
+  min-height: 28px;
 }
 
-.type-input:focus {
-  outline: none;
-  border-color: var(--teal);
+.type-input.placeholder {
+  color: var(--ink-soft);
+  font-weight: 500;
 }
 
 .type-input.correct {
