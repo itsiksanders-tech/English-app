@@ -772,7 +772,11 @@ function pickSprintRound() {
   const remaining = sprintWords.filter((entry) => entry.stage < SPRINT_STAGES.length);
   const entry = remaining[Math.floor(Math.random() * remaining.length)];
   const answerMode = SPRINT_STAGES[entry.stage];
-  const roundType = { prompt: Math.random() < 0.5 ? "he" : "emoji", options: "en" };
+  // Only picking "emoji" as the prompt when the word actually has one -
+  // most words in the expanded curriculum bank don't, and showing an
+  // emoji prompt for a word with none renders a blank card.
+  const promptKind = entry.word.emoji && Math.random() < 0.5 ? "emoji" : "he";
+  const roundType = { prompt: promptKind, options: "en" };
   return { correctWord: entry.word, roundType, answerMode };
 }
 
